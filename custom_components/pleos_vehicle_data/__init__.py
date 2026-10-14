@@ -6,6 +6,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import PleosClient
 from .archive import archive_store
 from .coordinator import PleosCoordinator
+from .statistics import TripStatistics
 from .trips import fired_store, trip_store, window_store
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.EVENT]
@@ -30,4 +31,5 @@ async def async_remove_entry(hass, entry):
     await trip_store(hass, entry.entry_id).async_remove()
     await window_store(hass, entry.entry_id).async_remove()
     await fired_store(hass, entry.entry_id).async_remove()
+    await TripStatistics.async_clear(hass, entry.entry_id)
     await archive_store(hass, entry.entry_id).async_remove()
