@@ -2,6 +2,20 @@
 
 A Home Assistant integration for the official Pleos **personal Vehicle Data API**. Supports Hyundai, Kia and Genesis accounts, with one entry per manufacturer and a device for each vehicle. Requires Home Assistant **2026.10 or later**.
 
+## Contents
+
+- [Supported vehicles](#supported-vehicles)
+- [Install with HACS](#install-with-hacs)
+- [Install without HACS](#install-without-hacs)
+- [Set up your account](#set-up-your-account)
+- [Options](#options) — all settings at a glance
+- [Data available in Home Assistant](#data-available-in-home-assistant)
+- [Example dashboard](#example-dashboard)
+- [No vehicles](#no-vehicles)
+- [Expired or replaced API keys](#expired-or-replaced-api-keys)
+- [Compared with kia_uvo](#compared-with-kia_uvo)
+- [Limitations and privacy](#limitations-and-privacy)
+
 ## Supported vehicles
 
 **Tested and working with a Kia PV5 Passenger.** Available fields depend on the data returned by the vehicle's API.
@@ -17,6 +31,43 @@ The following models and variant labels appear in the [Vehicle Data API compatib
 | Genesis | G70 (NORMAL); G80 (EV, NORMAL); G90 (NORMAL); GV60 (EV); GV70 (EV, NORMAL); GV80 (NORMAL) |
 
 These are Pleos's labels, including “KONA Electric (HEV)”; the matrix does not specify model years. The integration discovers cars through [Get Vehicles](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/for-private-users/get-vehicles), so other models may work too. Available fields vary by vehicle.
+
+## Install with HACS
+
+1. [Install and configure HACS](https://www.hacs.dev/docs/use/download/download/) if required.
+2. Open **HACS → ⋮ → Custom repositories**. Add `https://github.com/jouwdan/ha-pleos` with type **Integration**.
+3. Find **Pleos Vehicle Data**, download it, then restart Home Assistant.
+4. Complete the setup below. HACS manages later integration downloads and updates.
+
+## Install without HACS
+
+1. Download the source ZIP from the [latest release](https://github.com/jouwdan/ha-pleos/releases/latest).
+2. Extract it and copy `custom_components/pleos_vehicle_data` into your Home Assistant configuration directory's `custom_components` folder. The result must be `<config>/custom_components/pleos_vehicle_data/manifest.json`.
+3. Restart Home Assistant and complete the setup below. For updates, replace that integration directory with the new release and restart.
+
+## Set up your account
+
+The private API only allows the vehicle's **primary user** to authorise access. Shared or secondary app users cannot authorise a vehicle, even if they can see it in the manufacturer's app. Generate the key using the primary user's manufacturer account.
+
+1. Sign into [Pleos Playground](https://pleos.ai/). Open the account menu → **My Vehicle Data API**. This menu is available to users in Europe.
+2. Select the manufacturer, accept the required terms, choose **Get API Key**, and sign into the manufacturer's account. Copy **Client ID** and **Client Secret**. Private users do not need a business project or API-access approval. [Official key-generation guide](https://document.pleos.ai/en/api-reference/vehicle-data-api/getting-started/for-private-users/request-my-vehicle-api-key).
+3. In Home Assistant, open **Settings → Devices & services → Add integration → Pleos Vehicle Data**. Select that manufacturer and enter both credentials. Setup validates them before saving.
+4. Add the car's entities to dashboards or automations. Repeat setup for another manufacturer if needed.
+
+## Options
+
+All settings are in one place: **Settings → Devices & services → Pleos Vehicle Data → Configure** on a manufacturer entry. The dialog has three sections, **Vehicle status**, **Trips** and **Storage**. Changes reload the integration. Everything not listed here works without configuration, including the **Trip** event entity and the trip statistics.
+
+| Section | Option | Default | Range | Effect |
+| --- | --- | --- | --- | --- |
+| Vehicle status | **Polling interval** | 15 min | 5–1440 min | How often status data is requested. The car uploads on its own schedule, so polling more often does not make data newer. |
+| Vehicle status | **Stale-data threshold** | 60 min | 5–10080 min | Readings older than this get `data_stale: true`. They stay available. |
+| Vehicle status | **Enable location data and GPS tracking** | On | | Requests the location endpoint and creates the GPS tracker. Off: neither. |
+| Trips | **Trip data interval** | 60 min | 5–1440 min | How often the four trip endpoints are requested. Failed trip requests retry at the next status poll. |
+| Trips | **Fire an event for each new trip** | Off | | Fires `pleos_vehicle_data_trip` with every sample; see [Trip events](#trip-events). The **Trip** event entity works regardless of this option. |
+| Storage | **Archive raw vehicle data** | Off | | Keeps raw responses in compressed files; see [Response archive](#response-archive). |
+
+Credentials are not options: replace them with **⋮ → Reconfigure**; see [Expired or replaced API keys](#expired-or-replaced-api-keys).
 
 ## Data available in Home Assistant
 
@@ -49,7 +100,7 @@ Numeric trip sensors have `trip_min`, `trip_max`, `trip_mean`, `valid_samples` a
 
 **Trip distance (last trip)** is the difference between the first and last valid odometer samples of the latest driving trip. Its `odometer_start` and `odometer_end` attributes are in kilometres. An invalid final sample does not become a reading. Undocumented fields also get **(last trip)** readings, with numeric summaries where possible. Individual samples have no documented timestamps.
 
-Status endpoints have reporting-time and data-age sensors when the vehicle supplies a valid timestamp. Readings stay visible while the car is parked; check `reported_at`, `data_age_minutes` and `data_stale` for their age. Turning off the location option disables both location requests and GPS tracking.
+Status endpoints have reporting-time and data-age sensors when the vehicle supplies a valid timestamp. Readings stay visible while the car is parked; check `reported_at`, `data_age_minutes` and `data_stale` for their age. Turning off location in the [options](#options) disables both location requests and GPS tracking.
 
 Entities use names such as **AC charge limit** and **Cabin fan speed**; historical readings include **(last trip)**. Name changes preserve existing IDs and customised names. Documented fields support Home Assistant translations, with English included. New IDs use the English name regardless of your display language. Undocumented fields use names derived from their API paths.
 
@@ -77,7 +128,7 @@ Home Assistant converts readings for your unit preferences. To display miles, op
 
 ### Trip events
 
-Enable **Trip events** in the integration options to fire a `pleos_vehicle_data_trip` event for each new trip. It is off by default. Events contain every returned sample for use in automations or exports, for example through Node-RED or AppDaemon:
+Enable **Trip events** in the [options](#options) to fire a `pleos_vehicle_data_trip` event for each new trip. It is off by default. Events contain every returned sample for use in automations or exports, for example through Node-RED or AppDaemon:
 
 | Key | Content |
 | --- | --- |
@@ -141,7 +192,7 @@ chart_type: bar
 
 ### Response archive
 
-The optional archive keeps raw snapshot payloads and trip objects, including fields this integration does not understand yet. The archive is off by default and can be enabled under **Storage** in the integration options.
+The optional archive keeps raw snapshot payloads and trip objects, including fields this integration does not understand yet. The archive is off by default and can be enabled under **Storage** in the [options](#options).
 
 - Files: `<config>/pleos_vehicle_data/archive/<manufacturer>/<YYYY-MM>/<YYYY-MM-DD>.jsonl.gz`, one gzip-compressed JSON object per line, by UTC day of the request.
 - A snapshot or the vehicle list is written when its content changes; an unchanged response is not written again. Each trip is written once, and again only if Pleos later returns different content for it. Restarts do not cause duplicates.
@@ -154,6 +205,36 @@ The archive contains the VIN in the vehicle list and the car's locations. Treat 
 ### Diagnostics
 
 Use **Settings → Devices & services → Pleos Vehicle Data → ⋮ → Download diagnostics** for troubleshooting. It includes options, polling and rate-limit status, trip windows, archive status, readings and raw responses. A download from a car's device page contains only that car. Credentials, VINs, nicknames and coordinates are removed. Review the file before attaching it to an issue, especially if the API adds new fields.
+
+## Example dashboard
+
+[`examples/dashboard.yaml`](examples/dashboard.yaml) uses built-in cards for charge, range, doors, climate, a 48-hour map, trip summaries, 7-day graphs and data age.
+
+1. Replace `my_car_` with your car's entity-ID prefix and `hyundai_api_` with `kia_api_` or `genesis_api_` if needed. Check the full IDs against your entity list: older installations and customised IDs may also have different suffixes. Update these in both cards and markdown templates; some templates assemble IDs from a prefix and suffix.
+2. In Home Assistant, add a dashboard, open it, then choose **⋮ → Edit → ⋮ → Raw configuration editor** and paste the file.
+
+Missing tiles, gauges, map and badges are hidden outside edit mode. Trip cards fill in as valid samples arrive; graphs need recorded history. Missing trip distance is shown as unavailable. Summary tables label API units separately from converted sensor states. The VIN is masked to its last six characters.
+
+## No vehicles
+
+If the **Connection** sensor shows `no_vehicles`, Pleos accepted the key but returned no car for it. The integration cannot change this; the cause is on the account or vehicle side. Known causes:
+
+- **Not the primary user.** Only the vehicle's primary user can authorise API access. A key created with a shared or secondary app account grants no car, even if that account sees the car in the app.
+- **Key created before the car was added or activated.** Vehicle access is fixed when the key is issued. Generate a new key after the car appears in the manufacturer's app, then replace both credentials with **⋮ → Reconfigure**.
+- **Vehicle locked by the manufacturer.** Former company, fleet or demonstration cars can remain restricted in the manufacturer's systems, so the API returns no vehicle even for the primary user. Other Pleos-based integrations show the same. Only the manufacturer's customer support or Pleos can lift this.
+- **Region or connected services.** The personal API is only available in Europe, and the car's connected services and data-sharing consent must be active.
+
+The diagnostics download then shows `"status": "no_vehicles"` and no cars. When asking for help, attach it; it removes credentials and VINs.
+
+## Expired or replaced API keys
+
+Personal keys expire and require **manual renewal**. Check the expiry shown in Pleos. The integration renews access tokens automatically, not the personal key. [Official key-management guide](https://document.pleos.ai/en/api-reference/vehicle-data-api/getting-started/for-private-users/manage-my-vehicle-api-key).
+
+Expired access tokens are replaced automatically and the failed request is retried once. A 403 that persists with a fresh token remains an API permission error; it does not ask you to replace a valid personal key.
+
+When credentials are rejected, polling stops and Home Assistant requests reauthentication. Generate a new personal key and replace **both Client ID and Client Secret** in that request. To replace credentials before expiry, use the manufacturer's **⋮ → Reconfigure** menu. The existing entry reloads and retains entity IDs for the same vehicles.
+
+Pleos invalidates old access tokens when a key expires, is revoked or is reissued. A newly registered or activated vehicle also needs a new key: vehicle access is fixed at issuance. [Get Vehicles rules](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/for-private-users/get-vehicles).
 
 ## Compared with kia_uvo
 
@@ -214,73 +295,6 @@ Compared with kia_uvo 3.17.1 (library 4.35.2) on 14 October 2026, using its [doc
 | 360° camera images | ❌ | ✅ Hyundai |
 
 Availability depends on the vehicle, model year and region in both integrations. Marks describe the documented entities and trip attributes; either API may return additional fields.
-
-## Install with HACS
-
-1. [Install and configure HACS](https://www.hacs.dev/docs/use/download/download/) if required.
-2. Open **HACS → ⋮ → Custom repositories**. Add `https://github.com/jouwdan/ha-pleos` with type **Integration**.
-3. Find **Pleos Vehicle Data**, download it, then restart Home Assistant.
-4. Complete the setup below. HACS manages later integration downloads and updates.
-
-## Install without HACS
-
-1. Download the source ZIP from the [latest release](https://github.com/jouwdan/ha-pleos/releases/latest).
-2. Extract it and copy `custom_components/pleos_vehicle_data` into your Home Assistant configuration directory's `custom_components` folder. The result must be `<config>/custom_components/pleos_vehicle_data/manifest.json`.
-3. Restart Home Assistant and complete the setup below. For updates, replace that integration directory with the new release and restart.
-
-## Set up your account
-
-The private API only allows the vehicle's **primary user** to authorise access. Shared or secondary app users cannot authorise a vehicle, even if they can see it in the manufacturer's app. Generate the key using the primary user's manufacturer account.
-
-1. Sign into [Pleos Playground](https://pleos.ai/). Open the account menu → **My Vehicle Data API**. This menu is available to users in Europe.
-2. Select the manufacturer, accept the required terms, choose **Get API Key**, and sign into the manufacturer's account. Copy **Client ID** and **Client Secret**. Private users do not need a business project or API-access approval. [Official key-generation guide](https://document.pleos.ai/en/api-reference/vehicle-data-api/getting-started/for-private-users/request-my-vehicle-api-key).
-3. In Home Assistant, open **Settings → Devices & services → Add integration → Pleos Vehicle Data**. Select that manufacturer and enter both credentials. Setup validates them before saving.
-4. Add the car's entities to dashboards or automations. Repeat setup for another manufacturer if needed.
-
-## Options
-
-**Settings → Devices & services → Pleos Vehicle Data → Configure** on a manufacturer entry. Changes reload the integration.
-
-| Section | Option | Default | Range | Effect |
-| --- | --- | --- | --- | --- |
-| Vehicle status | **Polling interval** | 15 min | 5–1440 min | How often status data is requested. The car uploads on its own schedule, so polling more often does not make data newer. |
-| Vehicle status | **Stale-data threshold** | 60 min | 5–10080 min | Readings older than this get `data_stale: true`. They stay available. |
-| Vehicle status | **Enable location data and GPS tracking** | On | | Requests the location endpoint and creates the GPS tracker. Off: neither. |
-| Trips | **Trip data interval** | 60 min | 5–1440 min | How often the four trip endpoints are requested. Failed trip requests retry at the next status poll. |
-| Trips | **Fire an event for each new trip** | Off | | Fires `pleos_vehicle_data_trip` with every sample; see [Trip events](#trip-events). The **Trip** event entity works regardless of this option. |
-| Storage | **Archive raw vehicle data** | Off | | Keeps raw responses in compressed files; see [Response archive](#response-archive). |
-
-Credentials are not options: replace them with **⋮ → Reconfigure**; see [Expired or replaced API keys](#expired-or-replaced-api-keys).
-
-## Example dashboard
-
-[`examples/dashboard.yaml`](examples/dashboard.yaml) uses built-in cards for charge, range, doors, climate, a 48-hour map, trip summaries, 7-day graphs and data age.
-
-1. Replace `my_car_` with your car's entity-ID prefix and `hyundai_api_` with `kia_api_` or `genesis_api_` if needed. Check the full IDs against your entity list: older installations and customised IDs may also have different suffixes. Update these in both cards and markdown templates; some templates assemble IDs from a prefix and suffix.
-2. In Home Assistant, add a dashboard, open it, then choose **⋮ → Edit → ⋮ → Raw configuration editor** and paste the file.
-
-Missing tiles, gauges, map and badges are hidden outside edit mode. Trip cards fill in as valid samples arrive; graphs need recorded history. Missing trip distance is shown as unavailable. Summary tables label API units separately from converted sensor states. The VIN is masked to its last six characters.
-
-## No vehicles
-
-If the **Connection** sensor shows `no_vehicles`, Pleos accepted the key but returned no car for it. The integration cannot change this; the cause is on the account or vehicle side. Known causes:
-
-- **Not the primary user.** Only the vehicle's primary user can authorise API access. A key created with a shared or secondary app account grants no car, even if that account sees the car in the app.
-- **Key created before the car was added or activated.** Vehicle access is fixed when the key is issued. Generate a new key after the car appears in the manufacturer's app, then replace both credentials with **⋮ → Reconfigure**.
-- **Vehicle locked by the manufacturer.** Former company, fleet or demonstration cars can remain restricted in the manufacturer's systems, so the API returns no vehicle even for the primary user. Other Pleos-based integrations show the same. Only the manufacturer's customer support or Pleos can lift this.
-- **Region or connected services.** The personal API is only available in Europe, and the car's connected services and data-sharing consent must be active.
-
-The diagnostics download then shows `"status": "no_vehicles"` and no cars. When asking for help, attach it; it removes credentials and VINs.
-
-## Expired or replaced API keys
-
-Personal keys expire and require **manual renewal**. Check the expiry shown in Pleos. The integration renews access tokens automatically, not the personal key. [Official key-management guide](https://document.pleos.ai/en/api-reference/vehicle-data-api/getting-started/for-private-users/manage-my-vehicle-api-key).
-
-Expired access tokens are replaced automatically and the failed request is retried once. A 403 that persists with a fresh token remains an API permission error; it does not ask you to replace a valid personal key.
-
-When credentials are rejected, polling stops and Home Assistant requests reauthentication. Generate a new personal key and replace **both Client ID and Client Secret** in that request. To replace credentials before expiry, use the manufacturer's **⋮ → Reconfigure** menu. The existing entry reloads and retains entity IDs for the same vehicles.
-
-Pleos invalidates old access tokens when a key expires, is revoked or is reissued. A newly registered or activated vehicle also needs a new key: vehicle access is fixed at issuance. [Get Vehicles rules](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/for-private-users/get-vehicles).
 
 ## Limitations and privacy
 
