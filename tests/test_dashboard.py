@@ -67,3 +67,11 @@ class DashboardTests(HomeAssistantTestCase):
                 with self.subTest(entity=card["entity"]):
                     self.assertIn({"condition": "state", "entity": card["entity"], "state_not": "unknown"},
                                   card.get("visibility", []))
+
+    async def test_archive_badges_appear_only_with_the_archive(self):
+        archive = [badge for badge in BADGES if badge.get("entity") == "sensor.hyundai_api_archive"]
+        self.assertEqual(len(archive), 2)
+        # The view badge is an alert: it shows only when the archive cannot write.
+        alert = next(badge for badge in archive if badge.get("name") == "Archive")
+        self.assertIn({"condition": "state", "entity": "sensor.hyundai_api_archive", "state": "error"},
+                      alert["visibility"])
