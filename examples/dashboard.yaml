@@ -5,7 +5,7 @@
 # Entity IDs: the integration names entities after the car's device in Home Assistant, followed by
 # a fixed English part for new entities. Replace the placeholder prefixes with yours:
 #   my_car_       →  the prefix of your car's entities (Settings → Devices → your car), e.g. ioniq_6_
-#   hyundai_api_  →  kia_api_ / genesis_api_ for the account's Connection sensor
+#   hyundai_api_  →  kia_api_ / genesis_api_ for the account's Connection and Archive sensors
 #
 # Existing or customised IDs may also have different suffixes. Check the full IDs against your
 # entity list, including the suffixes assembled in markdown templates below.
@@ -76,6 +76,19 @@ views:
           - condition: state
             entity: sensor.hyundai_api_connection
             state_not: connected
+      # Only when the response archive is enabled and cannot write.
+      - type: entity
+        entity: sensor.hyundai_api_archive
+        name: Archive
+        icon: mdi:archive-alert
+        color: red
+        visibility:
+          - condition: state
+            entity: sensor.hyundai_api_archive
+            state_not: "unknown"
+          - condition: state
+            entity: sensor.hyundai_api_archive
+            state: error
 
     sections:
       # ═══════════════════════════════ ROW 1 ═══════════════════════════════
@@ -547,6 +560,13 @@ views:
                     entity: sensor.hyundai_api_connection
                     state_not: "unknown"
                 entity: sensor.hyundai_api_connection
+              # Only when the response archive is enabled.
+              - type: entity
+                visibility:
+                  - condition: state
+                    entity: sensor.hyundai_api_archive
+                    state_not: "unknown"
+                entity: sensor.hyundai_api_archive
           - type: markdown
             content: |-
               {%- set p = 'sensor.my_car_' -%}
