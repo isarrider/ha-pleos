@@ -3,12 +3,14 @@
 # Paste into: Settings → Dashboards → Add dashboard → open it → ⋮ → Edit → ⋮ → Raw configuration editor
 #
 # Entity IDs: the integration names entities after the car's device in Home Assistant, followed by
-# a fixed English part. Replace the placeholder prefixes with yours, e.g. with search & replace:
+# a fixed English part for new entities. Replace the placeholder prefixes with yours:
 #   my_car_       →  the prefix of your car's entities (Settings → Devices → your car), e.g. ioniq_6_
 #   hyundai_api_  →  kia_api_ / genesis_api_ for the account's Connection sensor
 #
-# Written for an EV. A card shows "Entity not found" when the API never sent that value for your car
-# (e.g. sunroof or seat heating) – delete the card. Fuel, hybrid and freezer sensors are not included.
+# Existing or customised IDs may also have different suffixes. Check the full IDs against your
+# entity list, including the suffixes assembled in markdown templates below.
+# Written for an EV. Cards and badges hide missing entities. Fuel, hybrid and freezer sensors
+# are not included. Graphs need recorded history; trip cards need a returned trip.
 #
 # Layout (4 columns):
 #   Row 1:  Battery & charging | Vehicle (+ km/day)  | Location map (2 columns wide)
@@ -28,16 +30,27 @@ views:
     max_columns: 4
     badges:
       - type: entity
+        visibility:
+          - condition: state
+            entity: sensor.my_car_battery_level
+            state_not: "unknown"
         entity: sensor.my_car_battery_level
         show_name: false
         color: green
       - type: entity
+        visibility:
+          - condition: state
+            entity: sensor.my_car_ev_range
+            state_not: "unknown"
         entity: sensor.my_car_ev_range
         show_name: false
       - type: entity
         entity: binary_sensor.my_car_charging
         name: Charging
         visibility:
+          - condition: state
+            entity: binary_sensor.my_car_charging
+            state_not: "unknown"
           - condition: state
             entity: binary_sensor.my_car_charging
             state: "on"
@@ -49,11 +62,17 @@ views:
         visibility:
           - condition: state
             entity: sensor.my_car_warnings
+            state_not: "unknown"
+          - condition: state
+            entity: sensor.my_car_warnings
             state_not: "None"
       - type: entity
         entity: sensor.hyundai_api_connection
         show_name: false
         visibility:
+          - condition: state
+            entity: sensor.hyundai_api_connection
+            state_not: "unknown"
           - condition: state
             entity: sensor.hyundai_api_connection
             state_not: connected
@@ -69,6 +88,10 @@ views:
             icon: mdi:battery-charging-high
             badges:
               - type: entity
+                visibility:
+                  - condition: state
+                    entity: sensor.my_car_battery_charging_data_age
+                    state_not: "unknown"
                 entity: sensor.my_car_battery_charging_data_age
           - type: gauge
             entity: sensor.my_car_battery_level
@@ -83,6 +106,11 @@ views:
             grid_options:
               columns: 6
               rows: 3
+            visibility:
+              - condition: state
+                entity: sensor.my_car_battery_level
+                state_not: "unknown"
+
           - type: gauge
             entity: sensor.my_car_ev_range
             name: Range
@@ -96,21 +124,41 @@ views:
             grid_options:
               columns: 6
               rows: 3
+            visibility:
+              - condition: state
+                entity: sensor.my_car_ev_range
+                state_not: "unknown"
+
           - type: tile
             entity: binary_sensor.my_car_plugged_in
             name: Plug
             icon: mdi:ev-plug-ccs2
+            visibility:
+              - condition: state
+                entity: binary_sensor.my_car_plugged_in
+                state_not: "unknown"
+
           - type: tile
             entity: binary_sensor.my_car_charging
             name: Charging
             icon: mdi:lightning-bolt
             color: green
+            visibility:
+              - condition: state
+                entity: binary_sensor.my_car_charging
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_charging_status
             name: Charging status
             icon: mdi:ev-station
             grid_options:
               columns: 12
+            visibility:
+              - condition: state
+                entity: sensor.my_car_charging_status
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_charge_time_remaining
             name: Time to full
@@ -119,22 +167,40 @@ views:
               columns: 12
             visibility:
               - condition: state
+                entity: sensor.my_car_charge_time_remaining
+                state_not: "unknown"
+              - condition: state
                 entity: binary_sensor.my_car_charging
                 state: "on"
           - type: tile
             entity: sensor.my_car_ac_charge_limit
             name: AC limit
             icon: mdi:ev-plug-type2
+            visibility:
+              - condition: state
+                entity: sensor.my_car_ac_charge_limit
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_dc_charge_limit
             name: DC limit
             icon: mdi:ev-plug-ccs2
+            visibility:
+              - condition: state
+                entity: sensor.my_car_dc_charge_limit
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_traction_battery_level
             name: Traction battery
             icon: mdi:car-battery
             grid_options:
               columns: 12
+            visibility:
+              - condition: state
+                entity: sensor.my_car_traction_battery_level
+                state_not: "unknown"
+
 
       # ─────────────── Vehicle
       - type: grid
@@ -144,35 +210,71 @@ views:
             icon: mdi:car-info
             badges:
               - type: entity
+                visibility:
+                  - condition: state
+                    entity: sensor.my_car_driving_status_data_age
+                    state_not: "unknown"
                 entity: sensor.my_car_driving_status_data_age
           - type: tile
             entity: binary_sensor.my_car_in_park
             name: In park
             icon: mdi:alpha-p-circle
+            visibility:
+              - condition: state
+                entity: binary_sensor.my_car_in_park
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_ignition
             name: Ignition
             icon: mdi:key-variant
+            visibility:
+              - condition: state
+                entity: sensor.my_car_ignition
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_accessory_power
             name: ACC
             icon: mdi:power-socket-eu
+            visibility:
+              - condition: state
+                entity: sensor.my_car_accessory_power
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_high_voltage_system_power
             name: HV system
             icon: mdi:flash-triangle
+            visibility:
+              - condition: state
+                entity: sensor.my_car_high_voltage_system_power
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_sleep_mode
             name: Sleep mode
             icon: mdi:sleep
+            visibility:
+              - condition: state
+                entity: sensor.my_car_sleep_mode
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_odometer
             name: Odometer
             icon: mdi:counter
+            visibility:
+              - condition: state
+                entity: sensor.my_car_odometer
+                state_not: "unknown"
+
           - type: markdown
             content: |-
               {% set w = state_attr('sensor.my_car_warnings', 'warnings') or [] %}
-              {% if w | count == 0 %}
+              {% if states('sensor.my_car_warnings') in ['unknown', 'unavailable'] %}
+              _Warnings unavailable._
+              {% elif w | count == 0 %}
               ✅ **No warnings reported**
               {% else %}
               ⚠️ **{{ w | count }} warning{{ 's' if w | count > 1 }}**
@@ -181,7 +283,7 @@ views:
 
               {% endfor %}{% endif %}
           - type: statistics-graph
-            title: Kilometres per day
+            title: Distance per day
             entities:
               - entity: sensor.my_car_odometer
                 name: Driven
@@ -204,12 +306,28 @@ views:
             icon: mdi:map-marker
             badges:
               - type: entity
+                visibility:
+                  - condition: state
+                    entity: sensor.my_car_speed
+                    state_not: "unknown"
                 entity: sensor.my_car_speed
               - type: entity
+                visibility:
+                  - condition: state
+                    entity: sensor.my_car_altitude
+                    state_not: "unknown"
                 entity: sensor.my_car_altitude
               - type: entity
+                visibility:
+                  - condition: state
+                    entity: sensor.my_car_location_data_age
+                    state_not: "unknown"
                 entity: sensor.my_car_location_data_age
           - type: map
+            visibility:
+              - condition: state
+                entity: device_tracker.my_car_location
+                state_not: "unknown"
             entities:
               - entity: device_tracker.my_car_location
                 name: Car
@@ -230,31 +348,65 @@ views:
             icon: mdi:car-door
             badges:
               - type: entity
+                visibility:
+                  - condition: state
+                    entity: sensor.my_car_vehicle_status_data_age
+                    state_not: "unknown"
                 entity: sensor.my_car_vehicle_status_data_age
           - type: tile
             entity: sensor.my_car_front_left_door
             name: Front left
             icon: mdi:car-door
+            visibility:
+              - condition: state
+                entity: sensor.my_car_front_left_door
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_front_right_door
             name: Front right
             icon: mdi:car-door
+            visibility:
+              - condition: state
+                entity: sensor.my_car_front_right_door
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_rear_left_door
             name: Rear left
             icon: mdi:car-door
+            visibility:
+              - condition: state
+                entity: sensor.my_car_rear_left_door
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_rear_right_door
             name: Rear right
             icon: mdi:car-door
+            visibility:
+              - condition: state
+                entity: sensor.my_car_rear_right_door
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_bonnet
             name: Bonnet
             icon: mdi:car-select
+            visibility:
+              - condition: state
+                entity: sensor.my_car_bonnet
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_boot
             name: Boot
             icon: mdi:car-back
+            visibility:
+              - condition: state
+                entity: sensor.my_car_boot
+                state_not: "unknown"
+
           - type: heading
             heading: Climate
             icon: mdi:air-conditioner
@@ -262,26 +414,56 @@ views:
             entity: sensor.my_car_climate_control
             name: Climate
             icon: mdi:fan
+            visibility:
+              - condition: state
+                entity: sensor.my_car_climate_control
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_cabin_target_temperature
             name: Target
             icon: mdi:thermostat
+            visibility:
+              - condition: state
+                entity: sensor.my_car_cabin_target_temperature
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_climate_mode
             name: Mode
             icon: mdi:tune-variant
+            visibility:
+              - condition: state
+                entity: sensor.my_car_climate_mode
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_cabin_fan_speed
             name: Fan
             icon: mdi:fan-speed-2
+            visibility:
+              - condition: state
+                entity: sensor.my_car_cabin_fan_speed
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_windscreen_defrost
             name: Defrost
             icon: mdi:car-defrost-front
+            visibility:
+              - condition: state
+                entity: sensor.my_car_windscreen_defrost
+                state_not: "unknown"
+
           - type: tile
             entity: sensor.my_car_steering_wheel_heating
             name: Steering wheel
             icon: mdi:steering
+            visibility:
+              - condition: state
+                entity: sensor.my_car_steering_wheel_heating
+                state_not: "unknown"
+
 
       # ─────────────── Last trip
       - type: grid
@@ -293,27 +475,32 @@ views:
             content: |-
               {%- set p = 'sensor.my_car_' -%}
               {%- set start = states(p ~ 'driving_trips_start') -%}
-              {%- set dur = states(p ~ 'driving_trips_duration') | float(0) -%}
-              {%- set dist = states(p ~ 'trip_distance_last_trip') | float(0) -%}
+              {%- set duration = p ~ 'driving_trips_duration' -%}
+              {%- set factor = {'ms': 0.001, 's': 1, 'min': 60, 'h': 3600, 'd': 86400}.get(state_attr(duration, 'unit_of_measurement')) -%}
+              {%- set dur = states(duration) | float * factor if states(duration) | is_number and factor else none -%}
+              {%- set distance = p ~ 'trip_distance_last_trip' -%}
+              {%- set dist = states(distance) | float(none) -%}
+              {%- set unit = state_attr(distance, 'unit_of_measurement') or '' -%}
+              {%- set speed_unit = {'kph': 'km/h', 'mph': 'mph'}.get(states(p ~ 'speed_unit_last_trip'), '–') -%}
               {%- set spd = p ~ 'speed_last_trip' -%}
               {%- set hv = p ~ 'traction_battery_voltage_last_trip' -%}
               {%- set acc = p ~ 'forward_acceleration_last_trip' -%}
               {%- set ot = p ~ 'outside_temperature_last_trip' -%}
-              {%- macro a(e, k, n) -%}{{ state_attr(e, k) | round(n) if state_attr(e, k) is number else '–' }}{%- endmacro -%}
+              {%- macro a(e, k, n) -%}{{ state_attr(e, k) | round(n) if state_attr(e, 'trip_start') == start and state_attr(e, k) is number else '–' }}{%- endmacro -%}
               {%- if start in ['unknown', 'unavailable'] -%}
               _No trip received yet. Pleos delivers trips with a delay; they are fetched hourly._
               {%- else -%}
-              ### {{ dist | round(1) }} km · {{ (dur / 60) | round(0) | int }} min
+              ### {{ (dist | round(1)) ~ ' ' ~ unit if dist is number else 'Distance unavailable' }} · {{ ((dur / 60) | round(0) | int) ~ ' min' if dur is number else 'Duration unavailable' }}
               {{ as_timestamp(start) | timestamp_custom('%a %d.%m. %H:%M') }}
 
               | | |
               |:--|--:|
-              | Ø speed | {{ (dist / (dur / 3600)) | round(0) | int if dur > 0 else '–' }} km/h |
-              | Max speed | {{ a(spd, 'trip_max', 0) }} km/h |
+              | Mean speed | {{ ((dist / (dur / 3600)) | round(0) | int) ~ ' ' ~ unit ~ '/h' if dist is number and dur is number and dur > 0 else '–' }} |
+              | Max speed | {{ a(spd, 'trip_max', 0) }} {{ speed_unit }} |
               | HV voltage | {{ a(hv, 'trip_min', 0) }} – {{ a(hv, 'trip_max', 0) }} V |
               | Max accel / brake | {{ a(acc, 'trip_max', 2) }} / {{ a(acc, 'trip_min', 2) }} g |
-              | Ø outside temp | {{ a(ot, 'trip_mean', 1) }} °C |
-              | Odometer | {{ state_attr(p ~ 'trip_distance_last_trip', 'odometer_start') or '–' }} → {{ state_attr(p ~ 'trip_distance_last_trip', 'odometer_end') or '–' }} km |
+              | Mean outside temp | {{ a(ot, 'trip_mean', 1) }} °C |
+              | Odometer | {{ a(distance, 'odometer_start', 1) }} → {{ a(distance, 'odometer_end', 1) }} km |
               {%- endif -%}
 
       # ─────────────── History (7 days)
@@ -355,6 +542,10 @@ views:
             icon: mdi:cloud-check-outline
             badges:
               - type: entity
+                visibility:
+                  - condition: state
+                    entity: sensor.hyundai_api_connection
+                    state_not: "unknown"
                 entity: sensor.hyundai_api_connection
           - type: markdown
             content: |-
@@ -387,40 +578,41 @@ views:
           - type: markdown
             content: |-
               {%- set p = 'sensor.my_car_' -%}
+              {%- set speed_unit = {'kph': 'km/h', 'mph': 'mph'}.get(states(p ~ 'speed_unit_last_trip'), '–') -%}
               {%- set rows = [
-                ('Speed', 'speed_last_trip', 0),
-                ('Wheel speed front left', 'front_left_wheel_speed_last_trip', 0),
-                ('Wheel speed front right', 'front_right_wheel_speed_last_trip', 0),
-                ('Wheel speed rear left', 'rear_left_wheel_speed_last_trip', 0),
-                ('Wheel speed rear right', 'rear_right_wheel_speed_last_trip', 0),
-                ('HV battery voltage', 'traction_battery_voltage_last_trip', 0),
-                ('Forward acceleration', 'forward_acceleration_last_trip', 2),
-                ('Turning rate (yaw)', 'turning_rate_last_trip', 1),
-                ('Steering wheel angle', 'steering_wheel_angle_last_trip', 0),
-                ('Steering wheel turning speed', 'steering_wheel_turning_speed_last_trip', 0),
-                ('Outside temperature', 'outside_temperature_last_trip', 1),
+                ('Speed', 'speed_last_trip', 0, speed_unit),
+                ('Wheel speed front left', 'front_left_wheel_speed_last_trip', 0, 'km/h'),
+                ('Wheel speed front right', 'front_right_wheel_speed_last_trip', 0, 'km/h'),
+                ('Wheel speed rear left', 'rear_left_wheel_speed_last_trip', 0, 'km/h'),
+                ('Wheel speed rear right', 'rear_right_wheel_speed_last_trip', 0, 'km/h'),
+                ('HV battery voltage', 'traction_battery_voltage_last_trip', 0, 'V'),
+                ('Forward acceleration', 'forward_acceleration_last_trip', 2, 'g'),
+                ('Turning rate (yaw)', 'turning_rate_last_trip', 1, '°/s'),
+                ('Steering wheel angle', 'steering_wheel_angle_last_trip', 0, '°'),
+                ('Steering wheel turning speed', 'steering_wheel_turning_speed_last_trip', 0, '°/s'),
+                ('Outside temperature', 'outside_temperature_last_trip', 1, '°C'),
               ] -%}
               {%- macro v(e, k, n) -%}{{ state_attr(e, k) | round(n) if state_attr(e, k) is number else '–' }}{%- endmacro -%}
               {%- set ns = namespace(out=[]) -%}
-              {%- for n, k, d in rows if states(p ~ k) | is_number -%}
+              {%- for n, k, d, unit in rows if states(p ~ k) | is_number -%}
               {%- set e = p ~ k -%}
               {%- set ns.out = ns.out + ['| ' ~ n ~ ' | ' ~ v(e, 'trip_min', d) ~ ' | ' ~ v(e, 'trip_mean', d) ~ ' | ' ~ v(e, 'trip_max', d)
-                    ~ ' | ' ~ (states(e) | float | round(d)) ~ ' | ' ~ (state_attr(e, 'unit_of_measurement') or '')
+                    ~ ' | ' ~ unit ~ ' | ' ~ (states(e) | float | round(d)) ~ ' ' ~ (state_attr(e, 'unit_of_measurement') or '')
                     ~ ' | ' ~ (state_attr(e, 'valid_samples') or '–') ~ '/' ~ (state_attr(e, 'total_samples') or '–') ~ ' |'] -%}
               {%- endfor -%}
               {%- if ns.out | count == 0 -%}
               _Trip series appear here after the first trip has been received._
               {%- else -%}
-              | Series | Min | Ø | Max | Last | Unit | Samples |
-              |:--|--:|--:|--:|--:|:--|--:|
+              | Series | Min | Mean | Max | Summary unit | Last state | Samples |
+              |:--|--:|--:|--:|:--|--:|--:|
               {{ ns.out | join('\n') }}
 
               {% set durs = [('Powertrain', 'powertrain_trips_duration'), ('Speed', 'speed_trips_duration'),
                               ('Driving', 'driving_trips_duration'), ('Status', 'vehicle_status_trips_duration')] -%}
 
               <small>Trip length per endpoint:
-              {%- for n, k in durs if states(p ~ k) | is_number %} {{ n }} {{ (states(p ~ k) | float / 60) | round(1) }} min{{ ' ·' if not loop.last }}{% endfor %}
-              · Ø is per sample, not time-weighted.</small>
+              {%- for n, k in durs if states(p ~ k) | is_number %} {{ n }} {{ states(p ~ k) }} {{ state_attr(p ~ k, 'unit_of_measurement') or '' }}{{ ' ·' if not loop.last }}{% endfor %}
+              · Each endpoint reports its latest trip, which may be a different drive. Summary units come from the API; last states use your Home Assistant units. Means are per sample, not time-weighted.</small>
               {%- endif -%}
 
       # ─────────────── Trip states: text values at the end of the last trip
@@ -467,18 +659,18 @@ views:
           - type: markdown
             content: |-
               {%- set e = 'sensor.my_car_vehicle_information' -%}
-              {%- set s = expand(e) | first -%}
+              {%- set s = expand(e) | first | default(none) -%}
               {%- if not s -%}
               _Vehicle information sensor not found._
               {%- else -%}
               {%- set skip = ['api_metadata', 'source', 'friendly_name', 'icon', 'device_class', 'options',
                               'state_class', 'unit_of_measurement', 'reported_at', 'data_age_minutes',
                               'data_stale', 'nickname', 'vin'] -%}
-              {%- set vin = (s.attributes.vin or '') | string -%}
+              {%- set vin = s.attributes.get('vin', '') | string -%}
               | | |
               |:--|--:|
               | Powertrain | {{ s.state }} |
-              {% if s.attributes.nickname %}| Nickname | {{ s.attributes.nickname }} |
+              {% if s.attributes.get('nickname') %}| Nickname | {{ s.attributes.nickname }} |
               {% endif -%}
               | VIN | {{ '•' * 11 ~ vin[-6:] if vin | length > 6 else '–' }} |
               {% for k, v in s.attributes.items() if k not in skip and (v is string or v is number or v is boolean) -%}

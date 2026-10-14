@@ -1,6 +1,6 @@
 # Pleos Vehicle Data
 
-A native Home Assistant integration for the official Pleos **personal Vehicle Data API**. Supports Hyundai, Kia and Genesis accounts, with one integration entry per manufacturer and a device for each returned vehicle. Requires Home Assistant **2026.10 or later**.
+A Home Assistant integration for the official Pleos **personal Vehicle Data API**. Supports Hyundai, Kia and Genesis accounts, with one entry per manufacturer and a device for each vehicle. Requires Home Assistant **2026.10 or later**.
 
 ## Supported vehicles
 
@@ -16,7 +16,7 @@ The following models and variant labels appear in the [Vehicle Data API compatib
 | Kia | CEED (NORMAL, PHEV); EV3 (EV); EV6 (EV); EV9 (EV); NIRO (EV, HEV, PHEV); Picanto (NORMAL); SORENTO (HEV, NORMAL, PHEV); SOUL EV (EV); SPORTAGE (HEV, NORMAL, PHEV); STINGER (NORMAL); STONIC (NORMAL) |
 | Genesis | G70 (NORMAL); G80 (EV, NORMAL); G90 (NORMAL); GV60 (EV); GV70 (EV, NORMAL); GV80 (NORMAL) |
 
-These are the matrix's labels, including “KONA Electric (HEV)”. Pleos does not specify model years in that table. A listing does not guarantee every field. The integration discovers cars through [Get Vehicles](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/for-private-users/get-vehicles); it does not restrict setup to this list.
+These are Pleos's labels, including “KONA Electric (HEV)”; the matrix does not specify model years. The integration discovers cars through [Get Vehicles](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/for-private-users/get-vehicles), so other models may work too. Available fields vary by vehicle.
 
 ## Data available in Home Assistant
 
@@ -35,17 +35,29 @@ All ten common Vehicle Data API endpoints are queried. Fields appear when the AP
 | [Driving trips](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/common/get-vehicle-operation-data) | `driving/data` | Ignition, mileage, trip distance, acceleration, yaw, ISLA settings, seat belts, steering and gear samples |
 | [Vehicle status trips](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/common/get-vehicle-data) | `status/data` | Door, lamp, tyre-pressure, low-fuel-warning and outside-temperature samples |
 
-Each endpoint has an **API diagnostic sensor** showing `available`, `no_data`, `error` or `disabled`. Its `rejected_values` and `rejected_examples` attributes count and explain values that were present but not turned into readings, for example out of the documented range or in an unknown unit; debug logging lists the field and reason without the raw value. Values the API leaves empty or marks `invalid` are not counted. Permission and unregistered-vehicle responses show `error`, while `4045` means `no_data`. Its `data` attribute contains the complete returned vehicle payload, including arrays and fields without a dedicated sensor; response metadata is under `api_metadata`. Vehicle information includes VIN, nickname, model code, model name and powertrain type, plus any other field Get Vehicles returns, as an attribute named after the field in snake case.
+Each endpoint has an **API diagnostic sensor** showing `available`, `no_data`, `error` or `disabled`. Permission and unregistered-vehicle errors show `error`; code `4045` means `no_data`. The `data` attribute holds the complete vehicle payload, including fields without a dedicated sensor, and `api_metadata` holds response metadata.
 
-Trip queries normally cover **yesterday and today in UTC** and run every **60 minutes** by default, separately from snapshot polling. On first setup, and after Home Assistant was offline or a trip query failed, they reach back to the last day fetched successfully, at most **7 days** including today, so trips from the gap are still collected. Pleos does not document a maximum range; if it refuses a longer query, the integration falls back to two days. Each endpoint's diagnostic sensor shows the range in its `query` attribute. Pleos delivers trip data with a delay, so frequent trip queries add requests without adding data. Between trip queries, trip sensors keep their last results. A newly added vehicle is queried immediately. Failed trip requests retry on the next snapshot poll; `no_data` results use the normal trip interval.
+The `rejected_values` and `rejected_examples` attributes explain discarded readings, such as values outside the documented range or in an unknown unit. Empty fields and the API's `invalid` markers are not counted. Debug logs include the field and reason without the raw value. The **Vehicle information** sensor exposes VIN, nickname, model and powertrain details, plus other fields returned by Get Vehicles.
+
+Trip queries run every **60 minutes** by default, separately from status polling, and normally cover **yesterday and today in UTC**. After a gap, they reach back to the last successful fetch, up to **7 days** including today. First setup also checks this wider window. If Pleos refuses the range, the integration retries with two days. The diagnostic sensor's `query` attribute shows the dates requested.
+
+Trip sensors keep their results between queries. New vehicles are queried immediately; failed requests retry on the next status poll. `no_data` results wait for the normal trip interval. Pleos delivers trips with a delay, so polling more often may return the same data.
 
 Full returned trips remain in the diagnostic sensor's `data` attribute. Individual trip sensors show the latest trip's final sample when valid, with trip start, duration and sample index.
 
-Numeric trip sensors also carry `trip_min`, `trip_max` and `trip_mean` attributes plus `valid_samples` and `total_samples`. These cover every valid sample of that trip in the unit of the final sample. The mean is taken over samples, not weighted by time. **Trip distance (last trip)** is the difference between the first and last valid odometer samples of the latest driving trip. Invalid final samples are omitted rather than replaced by older readings. Trip fields Pleos returns without documentation get a plain **(last trip)** reading too, with the same summary attributes for numbers. Pleos does not document individual sample timestamps, so none are invented. Trip readings are historical and are labelled separately from current-status snapshots.
+Numeric trip sensors have `trip_min`, `trip_max`, `trip_mean`, `valid_samples` and `total_samples` attributes. Summaries use valid samples in the final sample's unit; the mean is per sample, not time-weighted. Home Assistant can convert the sensor state to your preferred unit without converting these attributes. Each endpoint reports its own latest trip, so its readings may refer to a different drive.
+
+**Trip distance (last trip)** is the difference between the first and last valid odometer samples of the latest driving trip. Its `odometer_start` and `odometer_end` attributes are in kilometres. An invalid final sample does not become a reading. Undocumented fields also get **(last trip)** readings, with numeric summaries where possible. Individual samples have no documented timestamps.
+
+### Units
+
+Status readings use the unit returned by the API. For example, the [odometer response](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/common/get-vehicle-operation-status) can report `km`, `mile`, `meter` or `feet`; these become Home Assistant's `km`, `mi`, `m` or `ft`. Trip odometer samples are documented in kilometres.
+
+Home Assistant converts readings for your unit preferences. To display miles, open the odometer entity's settings and set **Unit of measurement** to **mi**. This converts both the number and label: **1,609.344 km = 1,000 mi**. If a reading differs from the car or app, compare its value and unit with `data.odometer` on the **Driving status API** sensor and include both in an issue report.
 
 ### Trip events
 
-When **Trip events** is enabled in the integration options (off by default), each new trip fires a `pleos_vehicle_data_trip` event once, carrying every sample the API returned for it. Use it in automations or to export complete trips, for example to InfluxDB through Node-RED or AppDaemon. Event data:
+Enable **Trip events** in the integration options to fire a `pleos_vehicle_data_trip` event for each new trip. It is off by default. Events contain every returned sample for use in automations or exports, for example through Node-RED or AppDaemon:
 
 | Key | Content |
 | --- | --- |
@@ -56,7 +68,7 @@ When **Trip events** is enabled in the integration options (off by default), eac
 | `trip_start`, `trip_length_ms` | Trip start time and duration as returned |
 | `trip` | The complete trip object, including all sample arrays |
 
-A trip is identified by its start time per vehicle and endpoint, so each endpoint announces it separately. Announced trips are remembered across restarts for nine days. Trips arriving late within the query window are still announced. Events are fired only after a complete poll, so a failed poll never marks a trip as announced. On first setup, trips already in the query window are announced once.
+Trips are identified by start time, vehicle and endpoint. Each endpoint sends its own event, including for late arrivals within the query window. Sent trips are remembered across restarts for nine days. Events fire after a complete poll; first setup sends events for trips already in the window.
 
 The recorder stores events, including their sample arrays. To keep them out of the database, add this to `configuration.yaml`:
 
@@ -69,9 +81,9 @@ recorder:
 
 Use trip events or the archive to export every returned trip. Sensor history contains the latest trip at each poll, so several trips arriving together produce one latest-trip state.
 
-Snapshot endpoints have reporting-time and data-age sensors when a valid vehicle timestamp is supplied. Valid last-reported values, including location, stay visible while the car is parked. Their `reported_at`, `data_age_minutes` and `data_stale` attributes show how old they are; they do not imply the car just uploaded new data. The location option disables both the location request and GPS tracking.
+Status endpoints have reporting-time and data-age sensors when the vehicle supplies a valid timestamp. Readings stay visible while the car is parked; check `reported_at`, `data_age_minutes` and `data_stale` for their age. Turning off the location option disables both location requests and GPS tracking.
 
-Entities use descriptive names such as **AC charge limit**, **Cabin fan speed** and **Front left seat heating**. Trip readings include **(last trip)** in their names. Updating display names preserves existing entity IDs and any names you have customised. Documented fields use Home Assistant name translations (English is provided), so they can be translated like any core integration. Fields the API returns without documentation keep a name generated from their path. New entity IDs are always built from the English name, whatever language Home Assistant uses, so they stay the same across languages and future translations.
+Entities use names such as **AC charge limit** and **Cabin fan speed**; historical readings include **(last trip)**. Name changes preserve existing IDs and customised names. Documented fields support Home Assistant translations, with English included. New IDs use the English name regardless of your display language. Undocumented fields use names derived from their API paths.
 
 ### Response archive
 
@@ -80,18 +92,18 @@ The optional archive keeps raw snapshot payloads and trip objects, including fie
 - Files: `<config>/pleos_vehicle_data/archive/<manufacturer>/<YYYY-MM>/<YYYY-MM-DD>.jsonl.gz`, one gzip-compressed JSON object per line, by UTC day of the request.
 - A snapshot or the vehicle list is written when its content changes; an unchanged response is not written again. Each trip is written once, and again only if Pleos later returns different content for it. Restarts do not cause duplicates.
 - Each record has `schema`, `kind` (`vehicles`, `snapshot`, `trip` or `trip_response`), `fetched_at`, `endpoint`, `vehicle_id`, the trip `query` and the API's `api_metadata`, plus the response in `data` or the trip in `trip`.
-- Nothing is deleted, also not when the integration is removed. Read it with `zcat` or `zgrep`, or `gzip.open` in Python.
+- Files remain until you delete them, including after removing the integration. Read them with `zcat`, `zgrep` or Python's `gzip.open`.
 - The **Archive** diagnostic sensor on the manufacturer's API device shows `ok` or `error`, the folder, the last write and the last error.
 
 The archive contains the VIN in the vehicle list and the car's locations. Treat the folder like the rest of your Home Assistant configuration.
 
 ### Diagnostics
 
-**Settings → Devices & services → Pleos Vehicle Data → ⋮ → Download diagnostics** saves the integration's state for troubleshooting: options, polling and rate-limit status, trip windows and announced trips, archive status, and every car's parsed readings with the latest raw responses. The download from a car's device page contains only that car. Credentials, the VIN (also inside request paths and texts), vehicle nicknames and coordinates are removed, Review the file before attaching it to an issue, especially if the API adds new fields.
+Use **Settings → Devices & services → Pleos Vehicle Data → ⋮ → Download diagnostics** for troubleshooting. It includes options, polling and rate-limit status, trip windows, archive status, readings and raw responses. A download from a car's device page contains only that car. Credentials, VINs, nicknames and coordinates are removed. Review the file before attaching it to an issue, especially if the API adds new fields.
 
 ## Compared with kia_uvo
 
-[kia_uvo](https://github.com/Hyundai-Kia-Connect/kia_uvo) (Kia Uvo / Hyundai Bluelink) is the widely used community integration. It is built on [hyundai_kia_connect_api](https://github.com/Hyundai-Kia-Connect/hyundai_kia_connect_api), which talks to the backend of the manufacturers' phone apps. This integration uses the official Pleos Vehicle Data API instead. The two can run side by side and create separate devices; Pleos uses API credentials rather than the app login.
+[kia_uvo](https://github.com/Hyundai-Kia-Connect/kia_uvo) (Kia Uvo / Hyundai Bluelink) uses [hyundai_kia_connect_api](https://github.com/Hyundai-Kia-Connect/hyundai_kia_connect_api) to talk to the manufacturers' phone-app backends. This integration uses the official Pleos Vehicle Data API. Both can run side by side, with separate devices and credentials.
 
 Compared with kia_uvo 3.17.1 (library 4.35.2) on 14 October 2026, using its [documented entities](https://github.com/Hyundai-Kia-Connect/kia_uvo#supported-entities) and [trip sensors](https://github.com/Hyundai-Kia-Connect/kia_uvo/blob/master/custom_components/kia_uvo/sensor.py).
 
@@ -164,6 +176,8 @@ Availability depends on the vehicle, model year and region in both integrations.
 
 ## Set up your account
 
+The private API only allows the vehicle's **primary user** to authorise access. Shared or secondary app users cannot authorise a vehicle, even if they can see it in the manufacturer's app. Generate the key using the primary user's manufacturer account.
+
 1. Sign into [Pleos Playground](https://pleos.ai/). Open the account menu → **My Vehicle Data API**. This menu is available to users in Europe.
 2. Select the manufacturer, accept the required terms, choose **Get API Key**, and sign into the manufacturer's account. Copy **Client ID** and **Client Secret**. Private users do not need a business project or API-access approval. [Official key-generation guide](https://document.pleos.ai/en/api-reference/vehicle-data-api/getting-started/for-private-users/request-my-vehicle-api-key).
 3. In Home Assistant, open **Settings → Devices & services → Add integration → Pleos Vehicle Data**. Select that manufacturer and enter both credentials. Setup validates them before saving.
@@ -171,12 +185,12 @@ Availability depends on the vehicle, model year and region in both integrations.
 
 ## Example dashboard
 
-[`examples/dashboard.yaml`](examples/dashboard.yaml) is a ready-made dashboard for an electric car, using only built-in cards. It shows charge and range gauges, charging state, doors, climate, a map with the last 48 hours, the latest trip with per-trip minimum, mean and maximum values, 7-day graphs, and how fresh each endpoint's data is.
+[`examples/dashboard.yaml`](examples/dashboard.yaml) uses built-in cards for charge, range, doors, climate, a 48-hour map, trip summaries, 7-day graphs and data age.
 
-1. Replace the placeholder prefixes in the file: `my_car_` with the prefix of your car's entity IDs, and `hyundai_api_` with `kia_api_` or `genesis_api_` if needed.
+1. Replace `my_car_` with your car's entity-ID prefix and `hyundai_api_` with `kia_api_` or `genesis_api_` if needed. Check the full IDs against your entity list: older installations and customised IDs may also have different suffixes. Update these in both cards and markdown templates; some templates assemble IDs from a prefix and suffix.
 2. In Home Assistant, add a dashboard, open it, then choose **⋮ → Edit → ⋮ → Raw configuration editor** and paste the file.
 
-Delete any card that shows **Entity not found**: the integration only creates an entity once the API has sent a valid value for it. Trip cards fill in after the first trip has been received. The VIN is shown masked to its last six characters.
+Missing tiles, gauges, map and badges are hidden outside edit mode. Trip cards fill in as valid samples arrive; graphs need recorded history. Missing trip distance is shown as unavailable. Summary tables label API units separately from converted sensor states. The VIN is masked to its last six characters.
 
 ## Expired or replaced API keys
 
