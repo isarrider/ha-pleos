@@ -12,7 +12,7 @@ jobs:
   hacs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate HACS repository
         uses: hacs/action@main
         with:
@@ -20,13 +20,13 @@ jobs:
   hassfest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate Home Assistant integration
         uses: home-assistant/actions/hassfest@master
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Test against Home Assistant Core
         run: >-
           docker run --rm --entrypoint python
