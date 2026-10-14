@@ -64,6 +64,7 @@
               "location": "Enable location data and GPS tracking"
             },
             "data_description": {
+              "poll_minutes": "How often status data is requested from Pleos. Trip data has its own interval under Trips.",
               "stale_minutes": "Older readings are marked with data_stale; they do not become unavailable.",
               "location": "Queries the location endpoint and exposes its data. A map tracker is created only for valid WGS84 coordinates."
             }
@@ -76,7 +77,7 @@
             },
             "data_description": {
               "trip_poll_minutes": "How often the four trip endpoints are queried. Pleos delivers trip data with a delay, so this can be longer than the polling interval. Trip readings are kept between queries.",
-              "trip_events": "Off by default. Fires pleos_vehicle_data_trip once per trip with every sample the API returned. Large trips can be excluded from the recorder."
+              "trip_events": "Off by default. Fires pleos_vehicle_data_trip once per trip with every sample the API returned. Large trips can be excluded from the recorder. The Trip event entity records every trip regardless of this option."
             }
           },
           "storage": {
