@@ -394,6 +394,34 @@ def summary(values):
             "valid_samples": len(values)}
 
 
+def trip_summary(endpoint, trip):
+    """Flat attributes describing one trip, for the Trip event entity.
+
+    Field names follow the trip sensors without their endpoint prefix; numbers also get
+    _min, _max and _mean over the trip's valid samples. Units are those of the matching
+    "(last trip)" sensor.
+    """
+    current, start = trip_readings(endpoint, {"trips": [trip]})
+    prefix = identifier(endpoint) + "_"
+    summary = {"trip_start": start}
+    for key, reading in current.items():
+        name = key.removeprefix(prefix)
+        if name == "trip_start":
+            continue
+        if name == "trip_duration":
+            summary["duration_s"] = reading["value"]
+            continue
+        if name == "trip_distance":
+            summary["distance_km"] = reading["value"]
+            continue
+        summary[name] = reading["value"]
+        attributes = reading.get("attributes", {})
+        for statistic in ("min", "max", "mean"):
+            if f"trip_{statistic}" in attributes:
+                summary[f"{name}_{statistic}"] = attributes[f"trip_{statistic}"]
+    return summary
+
+
 def trip_readings(endpoint, data, rejections=None):
     """Expose the latest trip's last samples; the API does not supply sample times.
 

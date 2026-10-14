@@ -35,4 +35,5 @@ ENTITY_NAMES = {
     "sensor": _sensor_names(),
     "binary_sensor": {key: NAMES[key] for key in BINARY_KEYS},
     "device_tracker": {"location": "Location"},
+    "event": {"trip": "Trip"},
 }

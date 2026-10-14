@@ -481,6 +481,21 @@
       "location": {
         "name": "Location"
       }
+    },
+    "event": {
+      "trip": {
+        "name": "Trip",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "powertrains_data": "Powertrain trip",
+              "speed": "Speed trip",
+              "driving_data": "Driving trip",
+              "status_data": "Vehicle status trip"
+            }
+          }
+        }
+      }
     }
   }
 }
