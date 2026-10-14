@@ -6,6 +6,7 @@ from datetime import datetime
 from homeassistant.components.diagnostics import REDACTED, async_redact_data
 
 from .const import DOMAIN
+from .statistics import STATISTICS, statistic_id
 
 # Credentials, the VIN, the user's own vehicle name and precise coordinates.
 TO_REDACT = {"client_id", "client_secret", "clientId", "clientSecret", "vin", "nickname", "latitude", "longitude", "accessToken"}
@@ -61,6 +62,22 @@ def _archive_state(archive):
             "remembered_trips": sum(len(slots) for slots in hashes.get("trips", {}).values())}
 
 
+def _statistics_state(hass, statistics):
+    """Per car: which statistics exist, the hours recorded and hours still waiting for import."""
+    ledger = statistics.ledger or {}
+    result = {"recorder_loaded": "recorder" in hass.config.components}
+    for car_id in sorted(set(ledger.get("hours", {})) | set(ledger.get("trips", {}))):
+        hours = sorted(ledger.get("hours", {}).get(car_id, {}))
+        result[car_id] = {
+            "statistic_ids": [statistic_id(car_id, kind) for kind in STATISTICS],
+            "hours": len(hours), "first_hour": hours[0] if hours else None, "last_hour": hours[-1] if hours else None,
+            "distance_km": round(sum(values.get("km", 0) for values in ledger["hours"].get(car_id, {}).values()), 3),
+            "pending_from": ledger.get("pending", {}).get(car_id),
+            "recent_trips": len(ledger.get("trips", {}).get(car_id, {})),
+        }
+    return result
+
+
 def _cars(coordinator):
     cars = (coordinator.data or {}).get("cars") or {}
     result = {}
@@ -94,6 +111,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "coordinator": _coordinator_state(coordinator),
         "trips": _trip_state(coordinator.trips),
         "archive": _archive_state(coordinator.archive),
+        "statistics": _statistics_state(hass, coordinator.statistics),
         "cars": _cars(coordinator),
     }, _secrets(entry))
 

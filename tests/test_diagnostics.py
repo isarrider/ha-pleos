@@ -94,3 +94,20 @@ class DiagnosticsTests(HomeAssistantTestCase):
         diagnostics = await async_get_config_entry_diagnostics(self.hass, self.entry)
         self.assertNotIn("48.137", json.dumps(diagnostics))
         self.assertEqual(readings["speed_location_latitude"]["value"], 48.137)
+
+    async def test_statistics_status_shows_hours_and_pending_imports(self):
+        await self.populate_everything()
+        trip = {"triggerStartTime": stamp(120), "tripLength": 600000, "odometer": {"value": [100, 112.5]}}
+        car_id = vehicle_id("kia", VIN)
+        statistics = self.coordinator.statistics
+        statistics.add(car_id, "driving/data", trip, "Family van")
+        # No recorder in this test: the hour waits for import and diagnostics say so.
+        await statistics.flush(True)
+        state = (await async_get_config_entry_diagnostics(self.hass, self.entry))["statistics"]
+        self.assertFalse(state["recorder_loaded"])
+        car = state[car_id]
+        # The fixture's speed trip and this driving trip.
+        self.assertEqual((car["hours"], car["distance_km"], car["recent_trips"]), (2, 12.5, 2))
+        self.assertEqual(car["pending_from"], car["first_hour"])
+        self.assertIn(f"pleos_vehicle_data:{car_id}_distance", car["statistic_ids"])
+        self.assertNotIn("Family van", json.dumps(state))
