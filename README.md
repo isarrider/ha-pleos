@@ -110,6 +110,35 @@ Each car has a **Trip** event entity (`event.<car>_trip`). It fires once for eve
 - The event's own time is when Home Assistant received the trip, not when it was driven; use `trip_start` for the drive time.
 - Fired trips are remembered across restarts for nine days. After a restart, Home Assistant restores the last event with its original time; that is not a new trip.
 
+### Trip statistics
+
+Trips reach Home Assistant up to a day after the drive, so sensor states and Trip events carry the time they arrived. For correct daily and hourly figures, the integration also imports **long-term statistics at the hour each trip started**:
+
+| Statistic ID | Content | Type |
+| --- | --- | --- |
+| `pleos_vehicle_data:<vehicle>_distance` | Distance driven, from driving trips' odometer samples | Sum, km |
+| `pleos_vehicle_data:<vehicle>_driving_time` | Driving time, from driving trips' duration | Sum, min |
+| `pleos_vehicle_data:<vehicle>_speed` | Speed while driving, from speed trips' samples | Hourly mean, minimum and maximum, km/h |
+
+`<vehicle>` is this integration's vehicle ID (not the VIN). Show them with a **Statistics graph** card, for example kilometres per day:
+
+```yaml
+type: statistics-graph
+title: Distance per day
+entities:
+  - pleos_vehicle_data:kia_0123456789abcdef_distance
+stat_types:
+  - change
+period: day
+chart_type: bar
+```
+
+- Pleos gives no time per sample, so a whole trip counts in the hour it started.
+- A trip that arrives late, or again with more samples, corrects its hour; all later sums are imported again, so totals stay right.
+- Every returned trip counts, including trips found at setup or by the catch-up after downtime. Earlier drives are not imported.
+- Statistics are kept in Home Assistant's database and shown in its statistics graphs and **Developer tools → Statistics**. The InfluxDB integration does not export them.
+- Removing the integration also removes these statistics.
+
 ### Response archive
 
 The optional archive keeps raw snapshot payloads and trip objects, including fields this integration does not understand yet. The archive is off by default and can be enabled under **Storage** in the integration options.

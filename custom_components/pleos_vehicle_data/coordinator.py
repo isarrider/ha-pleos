@@ -11,8 +11,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import ApiError, AuthError
 from .archive import ResponseArchive
 from .const import BRANDS, DEFAULT_OPTIONS, ENDPOINTS, ENDPOINT_NAMES, TRIP_ENDPOINTS
-from .data import (Rejections, identifier, location, readings, reported_age, trip_readings, trip_summary,
-                   vehicle_id)
+from .data import (Rejections, identifier, location, new_trips, readings, reported_age, trip_readings,
+                   trip_summary, vehicle_id)
+from .statistics import TripStatistics
 from .trips import TripTracker
 
 LOGGER = logging.getLogger(__name__)
@@ -35,6 +36,8 @@ class PleosCoordinator(DataUpdateCoordinator):
         # Trips waiting to be fired on each car's Trip event entity: {car_id: [(event_type, attributes)]}.
         self.trip_queue = {}
         self.new_trips = []  # [(car_id, endpoint, trip)] found in the running poll.
+        self.statistics = TripStatistics(hass, entry.entry_id)
+        self.fetched_trips = []  # [(car_id, endpoint, data)] returned in the running poll.
 
     async def _async_update_data(self):
         try:
@@ -43,7 +46,8 @@ class PleosCoordinator(DataUpdateCoordinator):
                 await self.trips.load()
             await self.trips.load_window()
             await self.trips.load_fired()
-            self.new_trips = []
+            await self.statistics.load()
+            self.new_trips, self.fetched_trips = [], []
             result = {"status": "connected" if vehicles else "no_vehicles", "cars": {}}
             pending = []
             trip_cache = {}
@@ -67,6 +71,7 @@ class PleosCoordinator(DataUpdateCoordinator):
                 await self.archive.flush()
             await self.trips.save_window()
             await self._queue_trip_events()
+            await self._update_statistics(result)
             if result["status"] != "rate_limited":
                 for car_id, car in trip_cache.items():
                     self.trips.remember(car_id, now, car)
@@ -181,6 +186,7 @@ class PleosCoordinator(DataUpdateCoordinator):
         car["sources"][endpoint] = start
         car["readings"].update({key: value | {"source": endpoint} for key, value in current.items()})
         self.new_trips.extend((car_id, endpoint, trip) for trip in self.trips.unfired(car_id, endpoint, data))
+        self.fetched_trips.append((car_id, endpoint, data))
         trips = data.get("trips") if isinstance(data, dict) else None
         source["value"] = "available" if isinstance(trips, list) and trips else "no_data"
         source["attributes"]["trip_count"] = len(trips) if isinstance(trips, list) else 0
@@ -194,6 +200,17 @@ class PleosCoordinator(DataUpdateCoordinator):
         for car_id, endpoint, trip in found:
             self.trip_queue.setdefault(car_id, []).append((identifier(endpoint), trip_summary(endpoint, trip)))
         await self.trips.mark_fired(found)
+
+    async def _update_statistics(self, result):
+        """Place every returned trip in its drive hour, once the poll succeeded."""
+        fetched, self.fetched_trips = self.fetched_trips, []
+        changed = False
+        for car_id, endpoint, data in fetched:
+            vehicle = result["cars"][car_id]["vehicle"]
+            name = vehicle.get("nickname") or vehicle.get("sellname") or BRANDS[self.brand] + " vehicle"
+            for trip in new_trips(data, set()):
+                changed |= self.statistics.add(car_id, endpoint, trip, name)
+        await self.statistics.flush(changed)
 
     def _apply_snapshot(self, car, endpoint, data, source):
         stamp = data.get("timestamp") if isinstance(data, dict) else None

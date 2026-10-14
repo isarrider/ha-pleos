@@ -1,6 +1,9 @@
 {
   "domain": "pleos_vehicle_data",
   "name": "Pleos Vehicle Data",
+  "after_dependencies": [
+    "recorder"
+  ],
   "codeowners": [
     "@jouwdan"
   ],
