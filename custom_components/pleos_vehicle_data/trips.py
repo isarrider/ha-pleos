@@ -14,6 +14,11 @@ def trip_store(hass, entry_id):
     return Store(hass, 1, f"{DOMAIN}.{entry_id}.trips")
 
 
+def fired_store(hass, entry_id):
+    """Trip start times already fired on the Trip event entity, per car and endpoint, kept across restarts."""
+    return Store(hass, 1, f"{DOMAIN}.{entry_id}.trip_entity")
+
+
 def window_store(hass, entry_id):
     """The last UTC day each car's trip endpoints were fetched up to, kept across restarts."""
     return Store(hass, 1, f"{DOMAIN}.{entry_id}.trip_window")
@@ -33,6 +38,30 @@ class TripTracker:
         self.covered_this_poll = {}
         # Longest range queried; lowered to two days if the API refuses longer ranges.
         self.max_days = TRIP_CATCH_UP_DAYS
+        self.fired = None  # {car_id: {endpoint: [start, ...]}}: trips fired on the Trip event entity.
+        self.fired_store = fired_store(hass, entry_id)
+
+    async def load_fired(self):
+        if self.fired is None:
+            stored = await self.fired_store.async_load()
+            self.fired = stored if isinstance(stored, dict) else {}
+
+    def unfired(self, car_id, endpoint, data):
+        """Trips in `data` not fired on the Trip event entity yet, oldest first. Call `load_fired` first."""
+        return new_trips(data, set(self.fired.get(car_id, {}).get(endpoint, ())))
+
+    async def mark_fired(self, items):
+        """Remember fired trips ([(car_id, endpoint, trip)]) and forget old ones."""
+        for car_id, endpoint, trip in items:
+            self.fired.setdefault(car_id, {}).setdefault(endpoint, []).append(trip["triggerStartTime"])
+        max_age = TRIP_MEMORY_DAYS * 86400
+        pruned = {car_id: {endpoint: kept for endpoint, starts in endpoints.items()
+                           if (kept := prune_seen(starts, max_age))}
+                  for car_id, endpoints in self.fired.items()}
+        pruned = {car_id: endpoints for car_id, endpoints in pruned.items() if endpoints}
+        if items or pruned != self.fired:
+            self.fired = pruned
+            await self.fired_store.async_save(pruned)
 
     async def load_window(self):
         if self.window is None:

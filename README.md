@@ -79,7 +79,16 @@ recorder:
       - pleos_vehicle_data_trip
 ```
 
-Use trip events or the archive to export every returned trip. Sensor history contains the latest trip at each poll, so several trips arriving together produce one latest-trip state.
+Sensor history contains the latest trip at each poll, so several trips arriving together produce one latest-trip state. To record every trip, use the **Trip** event entity below; for every sample, use trip events or the archive.
+
+### Trip event entity
+
+Each car has a **Trip** event entity (`event.<car>_trip`). It fires once for every trip the API returns, oldest first, also when several trips arrive in one query and for trips found at setup or by the catch-up after downtime. Each firing is an ordinary recorded state change, so Home Assistant's history and its InfluxDB integration keep every trip, and automations can trigger on it.
+
+- `event_type`: `powertrains_data`, `speed`, `driving_data` or `status_data`, the trip endpoint the trip came from. A drive usually appears once per endpoint.
+- Attributes: `trip_start` (the drive's start), `duration_s`, `distance_km` (driving trips), and each trip field named like its **(last trip)** sensor without the endpoint prefix, for example `location_speed`, with `_min`, `_max` and `_mean` for numbers. Units are those of the matching sensor. Sample arrays are not included.
+- The event's own time is when Home Assistant received the trip, not when it was driven; use `trip_start` for the drive time.
+- Fired trips are remembered across restarts for nine days. After a restart, Home Assistant restores the last event with its original time; that is not a new trip.
 
 Status endpoints have reporting-time and data-age sensors when the vehicle supplies a valid timestamp. Readings stay visible while the car is parked; check `reported_at`, `data_age_minutes` and `data_stale` for their age. Turning off the location option disables both location requests and GPS tracking.
 
