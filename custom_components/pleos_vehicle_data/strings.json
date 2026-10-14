@@ -87,9 +87,31 @@
             "data_description": {
               "archive": "Keeps every response exactly as received in compressed files under pleos_vehicle_data/archive in your configuration folder. Unchanged responses are not written again, each trip is stored once, and nothing is deleted."
             }
+          },
+          "export": {
+            "name": "Trip export",
+            "description": "Writes every sample of each new trip to VictoriaMetrics or InfluxDB in InfluxDB line protocol. Pleos gives no time for each sample, so samples are spread evenly over the trip and tagged timing=interpolated.",
+            "data": {
+              "export_format": "Database",
+              "export_url": "URL",
+              "export_database": "Database or bucket",
+              "export_org": "Organisation",
+              "export_token": "Token"
+            },
+            "data_description": {
+              "export_url": "For example http://victoriametrics:8428 or http://influxdb:8086. Basic authentication can be given as http://user:password@host:port.",
+              "export_database": "InfluxDB 1.x: database. InfluxDB 2.x: bucket. VictoriaMetrics: optional, added as a db label.",
+              "export_org": "InfluxDB 2.x only.",
+              "export_token": "Optional. Sent as a Bearer token, or as an InfluxDB 2.x Token."
+            }
           }
         }
       }
+    },
+    "error": {
+      "invalid_export_url": "Enter the database URL, starting with http:// or https://.",
+      "missing_bucket": "InfluxDB 2.x needs both a bucket and an organisation.",
+      "credentials_and_token": "Use either a user and password in the URL or a token, not both."
     }
   },
   "entity": {
@@ -209,6 +231,13 @@
       },
       "driving_sleepmode": {
         "name": "Sleep mode"
+      },
+      "export": {
+        "name": "Export",
+        "state": {
+          "ok": "OK",
+          "error": "Error"
+        }
       },
       "freezer_api": {
         "name": "Freezer status API"
@@ -480,6 +509,15 @@
     "device_tracker": {
       "location": {
         "name": "Location"
+      }
+    }
+  },
+  "selector": {
+    "export_format": {
+      "options": {
+        "off": "Off",
+        "influx_v1": "VictoriaMetrics or InfluxDB 1.x",
+        "influx_v2": "InfluxDB 2.x"
       }
     }
   }

@@ -68,35 +68,40 @@ class ConfigFlowTests(HomeAssistantTestCase):
         flow.handler = self.entry.entry_id
         form = await flow.async_step_init()
         submitted = form["data_schema"]({"polling": {"poll_minutes": 20, "stale_minutes": 60, "location": False},
-                                         "trips": {}, "storage": {}})
+                                         "trips": {}, "storage": {}, "export": {}})
         self.assertEqual(submitted["polling"]["poll_minutes"], 20)
         # Unchanged fields keep their defaults inside each section.
         self.assertEqual(submitted["trips"], {"trip_poll_minutes": 60, "trip_events": True})
         for invalid in ({"poll_minutes": 1}, {"stale_minutes": 10081}):
             with self.subTest(invalid=invalid), self.assertRaises(Exception):
                 form["data_schema"]({"polling": {"poll_minutes": 15, "stale_minutes": 60, "location": True} | invalid,
-                                     "trips": {}, "storage": {}})
+                                     "trips": {}, "storage": {}, "export": {}})
         self.assertTrue(flow.automatic_reload)
         # The frontend receives two expanded sections with their fields.
         fields = probatio.to_field_list(form["data_schema"], custom_serializer=cv.custom_serializer)
         self.assertEqual([(field["name"], field["type"], field["expanded"]) for field in fields],
-                         [("polling", "expandable", True), ("trips", "expandable", True), ("storage", "expandable", True)])
+                         [("polling", "expandable", True), ("trips", "expandable", True), ("storage", "expandable", True),
+                          ("export", "expandable", False)])
         self.assertEqual([item["name"] for item in fields[0]["schema"]], ["poll_minutes", "stale_minutes", "location"])
 
         # Saved options stay flat, so the coordinator and existing entries read them unchanged.
         result = await flow.async_step_init(submitted)
         self.assertEqual(result["data"], {"poll_minutes": 20, "stale_minutes": 60, "location": False,
-                                          "trip_poll_minutes": 60, "trip_events": True, "archive": True})
+                                          "trip_poll_minutes": 60, "trip_events": True, "archive": True,
+                                          "export_format": "off", "export_url": "", "export_database": "",
+                                          "export_org": "", "export_token": ""})
 
     async def test_options_form_shows_saved_values(self):
         self.hass.config_entries.async_update_entry(self.entry, options={"poll_minutes": 30, "trip_events": False})
         flow = PleosOptionsFlow()
         flow.hass = self.hass
         flow.handler = self.entry.entry_id
-        defaults = (await flow.async_step_init())["data_schema"]({"polling": {}, "trips": {}, "storage": {}})
+        defaults = (await flow.async_step_init())["data_schema"]({"polling": {}, "trips": {}, "storage": {}, "export": {}})
         self.assertEqual(defaults, {"polling": {"poll_minutes": 30, "stale_minutes": 60, "location": True},
                                     "trips": {"trip_poll_minutes": 60, "trip_events": False},
-                                    "storage": {"archive": True}})
+                                    "storage": {"archive": True},
+                                    "export": {"export_format": "off", "export_url": "", "export_database": "",
+                                               "export_org": "", "export_token": ""}})
 
     async def test_setup_uses_replacement_credentials_and_fresh_token(self):
         self.hass.config_entries.async_update_entry(self.entry, data=OLD | NEW)
@@ -105,6 +110,32 @@ class ConfigFlowTests(HomeAssistantTestCase):
         self.assertEqual(self.entry.runtime_data.client.credentials["clientId"], NEW["client_id"])
         self.assertIsNone(self.entry.runtime_data.client.token)
         await self.entry.runtime_data.async_shutdown()
+
+
+    async def test_export_settings_are_validated(self):
+        flow = PleosOptionsFlow()
+        flow.hass = self.hass
+        flow.handler = self.entry.entry_id
+        form = await flow.async_step_init()
+        base = form["data_schema"]({"polling": {}, "trips": {}, "storage": {}, "export": {}})
+        cases = (
+            ({"export_format": "influx_v1", "export_url": "victoriametrics:8428"}, "invalid_export_url"),
+            ({"export_format": "influx_v2", "export_url": "http://influx:8086", "export_database": "car"}, "missing_bucket"),
+            ({"export_format": "influx_v1", "export_url": "http://u:p@vm:8428", "export_token": "t"}, "credentials_and_token"),
+        )
+        for export, error in cases:
+            with self.subTest(error=error):
+                result = await flow.async_step_init(base | {"export": base["export"] | export})
+                self.assertEqual(result["errors"], {"base": error})
+                # The form keeps what was entered and opens the export section.
+                shown = result["data_schema"]({"polling": {}, "trips": {}, "storage": {}, "export": {}})
+                self.assertEqual(shown["export"]["export_url"], export["export_url"])
+                fields = probatio.to_field_list(result["data_schema"], custom_serializer=cv.custom_serializer)
+                self.assertTrue(fields[-1]["expanded"])
+        result = await flow.async_step_init(base | {"export": base["export"] | {
+            "export_format": "influx_v1", "export_url": " http://victoriametrics:8428 "}})
+        self.assertEqual((result["data"]["export_format"], result["data"]["export_url"]),
+                         ("influx_v1", "http://victoriametrics:8428"))
 
 
 if __name__ == "__main__":

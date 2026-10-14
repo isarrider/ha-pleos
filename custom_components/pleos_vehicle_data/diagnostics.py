@@ -6,9 +6,10 @@ from datetime import datetime
 from homeassistant.components.diagnostics import REDACTED, async_redact_data
 
 from .const import DOMAIN
+from .export import without_credentials
 
 # Credentials, the VIN, the user's own vehicle name and precise coordinates.
-TO_REDACT = {"client_id", "client_secret", "vin", "nickname", "latitude", "longitude", "accessToken"}
+TO_REDACT = {"client_id", "client_secret", "vin", "nickname", "latitude", "longitude", "accessToken", "export_token"}
 # Readings whose state is a coordinate.
 REDACTED_READINGS = {"locations_location_latitude", "locations_location_longitude"}
 
@@ -70,6 +71,13 @@ def _cars(coordinator):
             for car_id, car in cars.items()}
 
 
+def _export_state(exporter):
+    if exporter is None:
+        return {"enabled": False}
+    return {"enabled": True, "format": exporter.format, "status": exporter.status,
+            "remembered_trips": sum(len(starts) for starts in (exporter.exported or {}).values())}
+
+
 def _vins(coordinator):
     return [car["vehicle"]["vin"] for car in ((coordinator.data or {}).get("cars") or {}).values()
             if isinstance(car.get("vehicle", {}).get("vin"), str)]
@@ -78,10 +86,13 @@ def _vins(coordinator):
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return scrub({
-        "entry": {"title": entry.title, "data": dict(entry.data), "options": dict(entry.options)},
+        "entry": {"title": entry.title, "data": dict(entry.data),
+                  "options": dict(entry.options) | ({"export_url": without_credentials(entry.options["export_url"])}
+                                                    if entry.options.get("export_url") else {})},
         "coordinator": _coordinator_state(coordinator),
         "trips": _trip_state(coordinator.trips),
         "archive": _archive_state(coordinator.archive),
+        "export": _export_state(coordinator.exporter),
         "cars": _cars(coordinator),
     }, _vins(coordinator))
 

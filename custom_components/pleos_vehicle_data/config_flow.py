@@ -1,5 +1,7 @@
 """Guided setup and replacement of manually renewed personal API keys."""
 
+from urllib.parse import urlparse
+
 import probatio as vol
 
 from homeassistant import config_entries
@@ -14,6 +16,7 @@ from homeassistant.helpers.selector import (
 
 from .api import ApiError, AuthError, PleosClient
 from .const import BRANDS, DEFAULT_OPTIONS, DOMAIN
+from .export import FORMATS as EXPORT_FORMATS
 
 KEY_FIELDS = {
     vol.Required("client_id"): TextSelector(),
@@ -88,7 +91,10 @@ class PleosConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 # Options shown together in the form; entry options stay flat.
 OPTION_SECTIONS = {"polling": ("poll_minutes", "stale_minutes", "location"),
                    "trips": ("trip_poll_minutes", "trip_events"),
-                   "storage": ("archive",)}
+                   "storage": ("archive",),
+                   "export": ("export_format", "export_url", "export_database", "export_org", "export_token")}
+# Empty text options are allowed; the rest must always be set.
+OPTIONAL_FIELDS = ("export_url", "export_database", "export_org", "export_token")
 
 
 def minutes(maximum):
@@ -96,18 +102,45 @@ def minutes(maximum):
                                                unit_of_measurement="min"))
 
 
+def export_error(options):
+    """Why the export settings cannot work, or None."""
+    if options["export_format"] == "off":
+        return None
+    url = urlparse(options["export_url"].strip())
+    if url.scheme not in ("http", "https") or not url.netloc:
+        return "invalid_export_url"
+    if url.username and options["export_token"].strip():
+        return "credentials_and_token"
+    if options["export_format"] == "influx_v2" and not (options["export_database"].strip() and options["export_org"].strip()):
+        return "missing_bucket"
+    return None
+
+
 class PleosOptionsFlow(config_entries.OptionsFlowWithReload):
     async def async_step_init(self, user_input=None):
-        if user_input is not None:
-            return self.async_create_entry(title="", data={
-                key: value for fields in user_input.values() for key, value in fields.items()})
         options = DEFAULT_OPTIONS | dict(self.config_entry.options)
+        errors = {}
+        if user_input is not None:
+            submitted = {key: value for fields in user_input.values() for key, value in fields.items()}
+            submitted = {key: value.strip() if isinstance(value, str) else value for key, value in submitted.items()}
+            if error := export_error(DEFAULT_OPTIONS | submitted):
+                errors["base"] = error
+                options |= submitted
+            else:
+                return self.async_create_entry(title="", data=submitted)
         selectors = {"poll_minutes": minutes(1440), "stale_minutes": minutes(10080), "location": BooleanSelector(),
                      "trip_poll_minutes": minutes(1440), "trip_events": BooleanSelector(),
-                     "archive": BooleanSelector()}
-        return self.async_show_form(step_id="init", data_schema=vol.Schema({
+                     "archive": BooleanSelector(),
+                     "export_format": SelectSelector(SelectSelectorConfig(
+                         options=list(EXPORT_FORMATS), translation_key="export_format",
+                         mode=SelectSelectorMode.DROPDOWN)),
+                     "export_url": TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
+                     "export_database": TextSelector(), "export_org": TextSelector(),
+                     "export_token": TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))}
+        return self.async_show_form(step_id="init", errors=errors, data_schema=vol.Schema({
             vol.Required(name): section(vol.Schema({
-                vol.Required(key, default=options[key]): selectors[key] for key in keys
-            }), {"collapsed": False})
+                (vol.Optional if key in OPTIONAL_FIELDS else vol.Required)(key, default=options[key]): selectors[key]
+                for key in keys
+            }), {"collapsed": name == "export" and options["export_format"] == "off" and not errors})
             for name, keys in OPTION_SECTIONS.items()
         }))

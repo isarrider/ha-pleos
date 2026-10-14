@@ -1,7 +1,6 @@
 """Fetch each account once and share its data across all vehicle entities."""
 
 import logging
-import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
@@ -10,8 +9,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import ApiError, AuthError
 from .archive import ResponseArchive
+from .export import TripExporter
 from .const import BRANDS, DEFAULT_OPTIONS, ENDPOINTS, ENDPOINT_NAMES, TRIP_ENDPOINTS
-from .data import Rejections, identifier, location, readings, reported_age, trip_readings, vehicle_id
+from .data import Rejections, identifier, location, readings, reported_age, snake_case, trip_readings, vehicle_id
 from .trips import TripTracker
 
 LOGGER = logging.getLogger(__name__)
@@ -31,6 +31,8 @@ class PleosCoordinator(DataUpdateCoordinator):
                          update_interval=timedelta(minutes=self.options["poll_minutes"]))
         self.trips = TripTracker(hass, entry.entry_id, self.options["trip_poll_minutes"])
         self.archive = ResponseArchive(hass, entry.entry_id, self.brand) if self.options["archive"] else None
+        self.exporter = (TripExporter(hass, entry.entry_id, self.brand, self.options)
+                         if self.options["export_format"] != "off" else None)
 
     async def _async_update_data(self):
         try:
@@ -38,6 +40,8 @@ class PleosCoordinator(DataUpdateCoordinator):
             if self.options["trip_events"]:
                 await self.trips.load()
             await self.trips.load_window()
+            if self.exporter:
+                await self.exporter.load()
             result = {"status": "connected" if vehicles else "no_vehicles", "cars": {}}
             pending = []
             now = datetime.now(timezone.utc)
@@ -54,6 +58,8 @@ class PleosCoordinator(DataUpdateCoordinator):
             if self.archive:
                 await self.archive.flush()
             await self.trips.save_window()
+            if self.exporter:
+                await self.exporter.flush()
             return result
         except AuthError:
             raise ConfigEntryAuthFailed("Generate a new Pleos personal API key and replace both credentials") from None
@@ -91,7 +97,7 @@ class PleosCoordinator(DataUpdateCoordinator):
         # Keep every other field Get Vehicles returns, without overwriting the named ones above.
         for field, value in vehicle.items():
             if field not in NAMED_VEHICLE_FIELDS and value is not None:
-                attributes.setdefault(identifier(re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", str(field))), value)
+                attributes.setdefault(snake_case(field), value)
         return {"name": "Vehicle information", "value": vehicle.get("type") or "UNKNOWN", "domain": "sensor",
                 "entity_category": "diagnostic", "source": "vehicles", "attributes": attributes}
 
@@ -162,6 +168,8 @@ class PleosCoordinator(DataUpdateCoordinator):
         source["attributes"] |= rejections.attributes()
         if self.options["trip_events"]:
             pending.extend((car_id, endpoint, trip) for trip in self.trips.unseen(car_id, endpoint, data))
+        if self.exporter:
+            self.exporter.consider(car_id, endpoint, data)
         car["sources"][endpoint] = start
         car["readings"].update({key: value | {"source": endpoint} for key, value in current.items()})
         trips = data.get("trips") if isinstance(data, dict) else None

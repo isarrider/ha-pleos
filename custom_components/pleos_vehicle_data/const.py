@@ -12,7 +12,8 @@ ENDPOINT_NAMES = {
     "driving/data": "Driving trips", "status/data": "Vehicle status trips",
 }
 DEFAULT_OPTIONS = {"poll_minutes": 15, "stale_minutes": 60, "location": True, "trip_events": True,
-                   "trip_poll_minutes": 60, "archive": True}
+                   "trip_poll_minutes": 60, "archive": True, "export_format": "off", "export_url": "",
+                   "export_database": "", "export_org": "", "export_token": ""}
 TRIP_EVENT = DOMAIN + "_trip"
 # Trip queries normally cover yesterday and today (UTC); after downtime they reach back to the
 # last day fetched, at most this many days including today.

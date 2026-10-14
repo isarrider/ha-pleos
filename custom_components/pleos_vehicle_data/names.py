@@ -15,6 +15,7 @@ def _sensor_names():
     names = {key: name for key, name in NAMES.items() if key not in BINARY_KEYS}
     names["connection"] = "Connection"
     names["archive"] = "Archive"
+    names["export"] = "Export"
     names["vehicle_information"] = "Vehicle information"
     for endpoint in ENDPOINTS:
         names[identifier(endpoint) + "_api"] = ENDPOINT_NAMES[endpoint] + " API"

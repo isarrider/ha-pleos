@@ -75,6 +75,11 @@ def identifier(text):
     return re.sub(r"[^a-z0-9]+", "_", str(text).lower()).strip("_")
 
 
+def snake_case(text):
+    """camelCase API names as snake_case identifiers: modelYear -> model_year."""
+    return identifier(re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", str(text)))
+
+
 def label(path):
     return " ".join(re.sub(r"([a-z])([A-Z])", r"\1 \2", str(part)).replace("_", " ") for part in path).capitalize()
 

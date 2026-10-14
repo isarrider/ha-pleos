@@ -16,7 +16,8 @@ from .names import ENTITY_NAMES
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = entry.runtime_data
-    async_add_entities([ConnectionSensor(coordinator)] + ([ArchiveSensor(coordinator)] if coordinator.archive else []))
+    async_add_entities([ConnectionSensor(coordinator)] + ([ArchiveSensor(coordinator)] if coordinator.archive else [])
+                       + ([ExportSensor(coordinator)] if coordinator.exporter else []))
     discover(entry, async_add_entities, "sensor", ReadingSensor)
 
 
@@ -103,3 +104,34 @@ class ArchiveSensor(CoordinatorEntity, SensorEntity):
         return {"directory": str(self.coordinator.archive.directory), "last_written_at": status["last_written_at"],
                 "records_last_poll": status["records_last_poll"], "records_written_since_start": status["records_written"],
                 "last_error": status["last_error"]}
+
+
+class ExportSensor(CoordinatorEntity, SensorEntity):
+    """Whether new trips reach the configured time-series database."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = "enum"
+    _attr_translation_key = "export"
+    _attr_options = ["ok", "error"]
+    suggested_object_id = ENTITY_NAMES["sensor"]["export"]
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_unique_id = coordinator.brand + "_export"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, coordinator.brand + "_api")})
+
+    @property
+    def available(self):
+        return True
+
+    @property
+    def native_value(self):
+        return self.coordinator.exporter.status["state"]
+
+    @property
+    def extra_state_attributes(self):
+        status = self.coordinator.exporter.status
+        return {"target": status["target"], "last_export_at": status["last_export_at"],
+                "trips_last_poll": status["trips_last_poll"], "trips_exported_since_start": status["trips_exported"],
+                "lines_sent_since_start": status["lines_sent"], "last_error": status["last_error"]}

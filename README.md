@@ -81,6 +81,28 @@ Every API response is kept exactly as received, so nothing the API returns is lo
 
 The archive contains the VIN in the vehicle list and the car's locations. Treat the folder like the rest of your Home Assistant configuration.
 
+### Trip export to VictoriaMetrics or InfluxDB
+
+Home Assistant's InfluxDB integration only exports entity states, so trip sample series never reach a time-series database on their own. Under **Trip export** in the integration options, the integration can write every sample of each new trip itself, in InfluxDB line protocol:
+
+| Database | Setting | Request |
+| --- | --- | --- |
+| VictoriaMetrics | VictoriaMetrics or InfluxDB 1.x, URL such as `http://victoriametrics:8428`, database optional | `POST /write?db=…&precision=ms` |
+| InfluxDB 1.x | VictoriaMetrics or InfluxDB 1.x, URL and database | `POST /write?db=…&precision=ms` |
+| InfluxDB 2.x | InfluxDB 2.x, URL, bucket, organisation and token | `POST /api/v2/write?org=…&bucket=…&precision=ms` |
+
+A token is sent as `Authorization: Bearer …` (InfluxDB 2.x: `Token …`); a user and password can instead be given in the URL (`http://user:password@host:port`) and are sent as basic authentication. Credentials never appear in the status sensor, logs or diagnostics.
+
+What is written:
+
+- `pleos_trip`, one line per sample time, tagged `vehicle` (this integration's vehicle ID, not the VIN), `brand`, `endpoint` and `timing`. Field names follow the API path in snake case with the unit appended, for example `location_speed_kmh`, `wheel_speed_front_left_kmh`, `engine_rpm`, `batteries_hv_voltage_v`, `tire_pressure_front_left_kpa`. Speeds are converted to km/h and tyre pressures to kPa; invalid samples are left out. Undocumented trip fields are written as they come. All numbers are written as floats.
+- `pleos_trip_summary` at the trip start: `duration_s`, the number of sample times, and any single values of the trip.
+- **Timing:** Pleos does not give a time for each sample. Samples are spread evenly over the trip's duration and tagged `timing=interpolated`; without a duration, one second apart and tagged `timing=assumed_1s`.
+
+Each trip is written once, including trips found by the catch-up after downtime. If Pleos later returns more samples for a trip, the whole trip is written again. If a write fails, the trip is retried with the next trip query. The **Export** diagnostic sensor on the manufacturer's API device shows `ok` or `error`, the target and the last error.
+
+VictoriaMetrics names series `pleos_trip_<field>` with the tags as labels and ignores text fields (such as the gear); those stay in the response archive. Start VictoriaMetrics with `-dedup.minScrapeInterval=1ms` so a trip written again does not leave duplicate samples.
+
 ### Diagnostics
 
 **Settings → Devices & services → Pleos Vehicle Data → ⋮ → Download diagnostics** saves the integration's state for troubleshooting: options, polling and rate-limit status, trip windows and announced trips, archive status, and every car's parsed readings with the latest raw responses. The download from a car's device page contains only that car. Credentials, the VIN (also inside request paths and texts), vehicle nicknames and coordinates are removed, so it can be attached to an issue.
