@@ -59,7 +59,7 @@ Each manufacturer entry creates an **API device** (for example *Kia API*) and on
 
 | Device | Entity | What it shows |
 | --- | --- | --- |
-| API device | **Connection** | `connected`, `no_vehicles` (the key works but grants no car), `key_required` (replace the personal key), `api_unavailable` (Pleos could not be reached) or `rate_limited` (Pleos asked to slow down; requests pause until it allows them again) |
+| API device | **Connection** | `connected`, `no_vehicles` (the key works but grants no car; see [No vehicles](#no-vehicles)), `key_required` (replace the personal key), `api_unavailable` (Pleos could not be reached) or `rate_limited` (Pleos asked to slow down; requests pause until it allows them again) |
 | API device | **Archive** | Only when the archive is enabled: `ok` or `error`, with the folder, last write and last error |
 | Car | Readings | One sensor or binary sensor per value the API returns, for example **Battery level**, **Odometer**, **Front left door** |
 | Car | **(last trip)** sensors | The latest trip's final sample per trip field, with summaries (see above) |
@@ -231,6 +231,17 @@ Credentials are not options: replace them with **⋮ → Reconfigure**; see [Exp
 2. In Home Assistant, add a dashboard, open it, then choose **⋮ → Edit → ⋮ → Raw configuration editor** and paste the file.
 
 Missing tiles, gauges, map and badges are hidden outside edit mode. Trip cards fill in as valid samples arrive; graphs need recorded history. Missing trip distance is shown as unavailable. Summary tables label API units separately from converted sensor states. The VIN is masked to its last six characters.
+
+## No vehicles
+
+If the **Connection** sensor shows `no_vehicles`, Pleos accepted the key but returned no car for it. The integration cannot change this; the cause is on the account or vehicle side. Known causes:
+
+- **Not the primary user.** Only the vehicle's primary user can authorise API access. A key created with a shared or secondary app account grants no car, even if that account sees the car in the app.
+- **Key created before the car was added or activated.** Vehicle access is fixed when the key is issued. Generate a new key after the car appears in the manufacturer's app, then replace both credentials with **⋮ → Reconfigure**.
+- **Vehicle locked by the manufacturer.** Former company, fleet or demonstration cars can remain restricted in the manufacturer's systems, so the API returns no vehicle even for the primary user. Other Pleos-based integrations show the same. Only the manufacturer's customer support or Pleos can lift this.
+- **Region or connected services.** The personal API is only available in Europe, and the car's connected services and data-sharing consent must be active.
+
+The diagnostics download then shows `"status": "no_vehicles"` and no cars. When asking for help, attach it; it removes credentials and VINs.
 
 ## Expired or replaced API keys
 
