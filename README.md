@@ -49,6 +49,26 @@ Numeric trip sensors have `trip_min`, `trip_max`, `trip_mean`, `valid_samples` a
 
 **Trip distance (last trip)** is the difference between the first and last valid odometer samples of the latest driving trip. Its `odometer_start` and `odometer_end` attributes are in kilometres. An invalid final sample does not become a reading. Undocumented fields also get **(last trip)** readings, with numeric summaries where possible. Individual samples have no documented timestamps.
 
+Status endpoints have reporting-time and data-age sensors when the vehicle supplies a valid timestamp. Readings stay visible while the car is parked; check `reported_at`, `data_age_minutes` and `data_stale` for their age. Turning off the location option disables both location requests and GPS tracking.
+
+Entities use names such as **AC charge limit** and **Cabin fan speed**; historical readings include **(last trip)**. Name changes preserve existing IDs and customised names. Documented fields support Home Assistant translations, with English included. New IDs use the English name regardless of your display language. Undocumented fields use names derived from their API paths.
+
+### Entities and devices
+
+Each manufacturer entry creates an **API device** (for example *Kia API*) and one device per car.
+
+| Device | Entity | What it shows |
+| --- | --- | --- |
+| API device | **Connection** | `connected`, `no_vehicles` (the key works but grants no car), `key_required` (replace the personal key), `api_unavailable` (Pleos could not be reached) or `rate_limited` (Pleos asked to slow down; requests pause until it allows them again) |
+| API device | **Archive** | Only when the archive is enabled: `ok` or `error`, with the folder, last write and last error |
+| Car | Readings | One sensor or binary sensor per value the API returns, for example **Battery level**, **Odometer**, **Front left door** |
+| Car | **(last trip)** sensors | The latest trip's final sample per trip field, with summaries (see above) |
+| Car | **Trip** | Event entity firing once per trip; see [Trip event entity](#trip-event-entity) |
+| Car | **Location** | GPS tracker, when location is enabled and the car reports valid WGS84 coordinates |
+| Car | **Vehicle information** | Diagnostic: powertrain type, with VIN, model and every other Get Vehicles field as attributes |
+| Car | ***Endpoint* API** | Diagnostic, one per endpoint: `available`, `no_data`, `error` or `disabled`, with the raw response, query and rejected values (see above) |
+| Car | ***Endpoint* last reported**, ***Endpoint* data age** | Diagnostic, per status endpoint: when the car last reported that data and how old it is |
+
 ### Units
 
 Status readings use the unit returned by the API. For example, the [odometer response](https://document.pleos.ai/en/api-reference/vehicle-data-api/vehicle-data-api/common/get-vehicle-operation-status) can report `km`, `mile`, `meter` or `feet`; these become Home Assistant's `km`, `mi`, `m` or `ft`. Trip odometer samples are documented in kilometres.
@@ -89,10 +109,6 @@ Each car has a **Trip** event entity (`event.<car>_trip`). It fires once for eve
 - Attributes: `trip_start` (the drive's start), `duration_s`, `distance_km` (driving trips), and each trip field named like its **(last trip)** sensor without the endpoint prefix, for example `location_speed`, with `_min`, `_max` and `_mean` for numbers. Units are those of the matching sensor. Sample arrays are not included.
 - The event's own time is when Home Assistant received the trip, not when it was driven; use `trip_start` for the drive time.
 - Fired trips are remembered across restarts for nine days. After a restart, Home Assistant restores the last event with its original time; that is not a new trip.
-
-Status endpoints have reporting-time and data-age sensors when the vehicle supplies a valid timestamp. Readings stay visible while the car is parked; check `reported_at`, `data_age_minutes` and `data_stale` for their age. Turning off the location option disables both location requests and GPS tracking.
-
-Entities use names such as **AC charge limit** and **Cabin fan speed**; historical readings include **(last trip)**. Name changes preserve existing IDs and customised names. Documented fields support Home Assistant translations, with English included. New IDs use the English name regardless of your display language. Undocumented fields use names derived from their API paths.
 
 ### Response archive
 
@@ -192,6 +208,21 @@ The private API only allows the vehicle's **primary user** to authorise access. 
 3. In Home Assistant, open **Settings → Devices & services → Add integration → Pleos Vehicle Data**. Select that manufacturer and enter both credentials. Setup validates them before saving.
 4. Add the car's entities to dashboards or automations. Repeat setup for another manufacturer if needed.
 
+## Options
+
+**Settings → Devices & services → Pleos Vehicle Data → Configure** on a manufacturer entry. Changes reload the integration.
+
+| Section | Option | Default | Range | Effect |
+| --- | --- | --- | --- | --- |
+| Vehicle status | **Polling interval** | 15 min | 5–1440 min | How often status data is requested. The car uploads on its own schedule, so polling more often does not make data newer. |
+| Vehicle status | **Stale-data threshold** | 60 min | 5–10080 min | Readings older than this get `data_stale: true`. They stay available. |
+| Vehicle status | **Enable location data and GPS tracking** | On | | Requests the location endpoint and creates the GPS tracker. Off: neither. |
+| Trips | **Trip data interval** | 60 min | 5–1440 min | How often the four trip endpoints are requested. Failed trip requests retry at the next status poll. |
+| Trips | **Fire an event for each new trip** | Off | | Fires `pleos_vehicle_data_trip` with every sample; see [Trip events](#trip-events). The **Trip** event entity works regardless of this option. |
+| Storage | **Archive raw vehicle data** | Off | | Keeps raw responses in compressed files; see [Response archive](#response-archive). |
+
+Credentials are not options: replace them with **⋮ → Reconfigure**; see [Expired or replaced API keys](#expired-or-replaced-api-keys).
+
 ## Example dashboard
 
 [`examples/dashboard.yaml`](examples/dashboard.yaml) uses built-in cards for charge, range, doors, climate, a 48-hour map, trip summaries, 7-day graphs and data age.
@@ -213,7 +244,7 @@ Pleos invalidates old access tokens when a key expires, is revoked or is reissue
 
 ## Limitations and privacy
 
-- Default polling is **15 minutes**. After **60 minutes**, snapshot readings are marked `data_stale: true` but remain available. Both settings are configurable under **Vehicle status** in the integration options, and the trip data interval and trip events under **Trips**; age is updated at each poll. Missing or invalid readings and failed account requests can still make entities unavailable. Automations that require recent information should check `data_stale`.
+- Default polling is **15 minutes**. After **60 minutes**, snapshot readings are marked `data_stale: true` but remain available. Both are configurable; see [Options](#options). Age is updated at each poll. Missing or invalid readings and failed account requests can still make entities unavailable. Automations that require recent information should check `data_stale`.
 - Availability varies with vehicle, powertrain, model year, region and connected-service settings. Null or documented invalid values do not become vehicle readings. `no_data` is an API result, not a guarantee of future availability. [Pleos FAQ](https://document.pleos.ai/en/api-reference/vehicle-data-api/faq).
 - Pleos says trip data is available only **24 hours after consent**, and also depends on connected services, data-collection consent and ePrivacy settings. A `4045` response means no data was returned. [Pleos FAQ](https://document.pleos.ai/en/api-reference/vehicle-data-api/faq).
 - This is a read-only cloud integration. It does not implement remote vehicle commands, camera access, the in-car SDK, Fleet API or business-user authentication/consent flows. Status snapshots and returned trip samples are not live telemetry.
