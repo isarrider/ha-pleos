@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import BRANDS, DOMAIN
 from .entity import VehicleEntity, discover
+from .names import ENTITY_NAMES
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -48,6 +49,9 @@ class ConnectionSensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = "enum"
     _attr_translation_key = "connection"
     _attr_options = ["connected", "no_vehicles", "key_required", "api_unavailable", "rate_limited"]
+
+    # The entity ID stays English, like every other entity of this integration.
+    suggested_object_id = ENTITY_NAMES["sensor"]["connection"]
 
     def __init__(self, coordinator):
         super().__init__(coordinator)

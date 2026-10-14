@@ -1,13 +1,17 @@
 """Entity name translations match the names the integration generates."""
 
 import json
+import logging
 import pathlib
-import re
 import unittest
-from unittest.mock import AsyncMock
+from datetime import timedelta
+from unittest.mock import AsyncMock, patch
+
+from homeassistant.helpers import entity_registry
+from homeassistant.helpers.entity_platform import EntityPlatform
 
 from custom_components.pleos_vehicle_data.binary_sensor import ReadingBinarySensor
-from custom_components.pleos_vehicle_data.const import ENDPOINTS, TRIP_ENDPOINTS
+from custom_components.pleos_vehicle_data.const import DOMAIN, ENDPOINTS, TRIP_ENDPOINTS
 from custom_components.pleos_vehicle_data.data import TRIP_FIELDS, readings, trip_readings, vehicle_id
 from custom_components.pleos_vehicle_data.device_tracker import VehicleTracker
 from custom_components.pleos_vehicle_data.names import ENTITY_NAMES
@@ -116,6 +120,39 @@ class EntityNameTests(HomeAssistantTestCase):
         self.assertEqual(tracker.translation_key, "location")
         self.assertEqual(ConnectionSensor(self.coordinator).translation_key, "connection")
 
+    async def test_entity_ids_stay_english_on_a_translated_system(self):
+        """A German system with a German translation shows German names but creates English entity IDs."""
+        self.hass.config.language = "de"
+        await entity_registry.async_load(self.hass, load_empty=True)
+        self.client.vehicles = AsyncMock(return_value=[CAR | {"nickname": "Van"}])
+        self.client.get = AsyncMock(return_value={"timestamp": stamp(), "charge": {"stateOfCharge": 50}})
+        self.coordinator.data = await self.coordinator._async_update_data()
+        self.coordinator.last_update_success = True
+        car_id = vehicle_id("kia", CAR["vin"])
+        car = self.coordinator.data["cars"][car_id]
+        german = {f"component.{DOMAIN}.entity.sensor.{key}.name": name for key, name in (
+            ("batteries_charge_stateofcharge", "Batteriestand"), ("connection", "Verbindung"))}
+
+        async def translations(hass, language, category, integrations):
+            return german if language == "de" and category == "entity" else {}
+
+        platform = EntityPlatform(hass=self.hass, logger=logging.getLogger(__name__), domain="sensor",
+                                  platform_name=DOMAIN, platform=None, scan_interval=timedelta(minutes=15),
+                                  entity_namespace=None)
+        platform.config_entry = self.entry
+        with patch("homeassistant.helpers.translation.async_get_translations", side_effect=translations):
+            await platform.platform_data.async_load_translations()
+            await platform.async_add_entities([
+                ReadingSensor(self.coordinator, car_id, "batteries_charge_stateofcharge",
+                              car["readings"]["batteries_charge_stateofcharge"]),
+                ConnectionSensor(self.coordinator),
+            ])
+        registry = entity_registry.async_get(self.hass)
+        level = registry.async_get_entity_id("sensor", DOMAIN, car_id + "_batteries_charge_stateofcharge")
+        connection = registry.async_get_entity_id("sensor", DOMAIN, "kia_api_status")
+        self.assertEqual((level, connection), ("sensor.van_battery_level", "sensor.kia_api_connection"))
+        self.assertEqual(self.hass.states.get(level).name, "Van Batteriestand")
+        await platform.async_reset()
 
 if __name__ == "__main__":
     unittest.main()

@@ -50,6 +50,11 @@ class VehicleEntity(CoordinatorEntity):
         self._attr_entity_category = EntityCategory(spec["entity_category"]) if spec.get("entity_category") else None
 
     @property
+    def suggested_object_id(self):
+        # New entity IDs always come from the English name, whatever the system language.
+        return ENTITY_NAMES[self.platform_domain].get(self.key, self.spec["name"])
+
+    @property
     def car(self):
         return self.coordinator.data["cars"].get(self.car_id)
 

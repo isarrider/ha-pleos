@@ -67,7 +67,7 @@ Trip events can be turned off in the integration options.
 
 Snapshot endpoints have reporting-time and data-age sensors when a valid vehicle timestamp is supplied. Valid last-reported values, including location, stay visible while the car is parked. Their `reported_at`, `data_age_minutes` and `data_stale` attributes show how old they are; they do not imply the car just uploaded new data. The location option disables both the location request and GPS tracking.
 
-Entities use descriptive names such as **AC charge limit**, **Cabin fan speed** and **Front left seat heating**. Trip readings include **(last trip)** in their names. Updating display names preserves existing entity IDs and any names you have customised. Documented fields use Home Assistant name translations (English is provided), so they can be translated like any core integration. Fields the API returns without documentation keep a name generated from their path.
+Entities use descriptive names such as **AC charge limit**, **Cabin fan speed** and **Front left seat heating**. Trip readings include **(last trip)** in their names. Updating display names preserves existing entity IDs and any names you have customised. Documented fields use Home Assistant name translations (English is provided), so they can be translated like any core integration. Fields the API returns without documentation keep a name generated from their path. New entity IDs are always built from the English name, whatever language Home Assistant uses, so they stay the same across languages and future translations.
 
 ## Install with HACS
 
